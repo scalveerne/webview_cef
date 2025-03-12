@@ -149,7 +149,6 @@ public:
     static bool IsChromeRuntimeEnabled();
 
     void closeBrowser(int browserId);
-    void createBrowser(std::string url, std::function<void(int)> callback);
     void createBrowser(std::string url, std::string profileId, std::function<void(int)> callback);
 
     void sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY);
