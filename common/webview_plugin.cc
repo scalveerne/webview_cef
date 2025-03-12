@@ -249,8 +249,11 @@ namespace webview_cef {
 			result(1, nullptr);
 		}
 		else if (name.compare("create") == 0) {
-			std::string url = webview_value_get_string(values);
-			m_handler->createBrowser(url, [=](int browserId) {
+			const auto& args = std::get<flutter::EncodableList>(values);
+     		std::string url = std::get<std::string>(args[0]);
+			std::string profileId = args.size() > 1 ? std::get<std::string>(args[1]) : "default";
+
+			m_handler->createBrowser(url, profileId, [=](int browserId) {
 				std::shared_ptr<WebviewTexture> renderer = m_createTextureFunc();
 				m_renderers[browserId] = renderer;
 				WValue	*response = webview_value_new_list();

@@ -13,12 +13,18 @@ import 'webview_textinput.dart';
 import 'webview_tooltip.dart';
 
 class WebViewController extends ValueNotifier<bool> {
-  WebViewController(this._pluginChannel, this._index, {Widget? loading})
-      : super(false) {
+  WebViewController(
+    this._pluginChannel,
+    this._index, {
+    Widget? loading,
+    String? profileId,
+  }) : super(false) {
     _loadingWidget = loading;
+    _profileId = profileId;
   }
   final MethodChannel _pluginChannel;
   Widget? _loadingWidget;
+  String? _profileId;
 
   late WebView _webviewWidget;
   Widget get webviewWidget => _webviewWidget;
@@ -62,7 +68,12 @@ class WebViewController extends ValueNotifier<bool> {
     _creatingCompleter = Completer<void>();
     try {
       await WebviewManager().ready;
-      List args = await _pluginChannel.invokeMethod('create', url);
+
+      List args = await _pluginChannel.invokeMethod(
+        'create',
+        [url, _profileId],
+      );
+
       _browserId = args[0] as int;
       _textureId = args[1] as int;
       WebviewManager().onBrowserCreated(_index, _browserId);
