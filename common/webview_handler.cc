@@ -379,7 +379,7 @@ public:
         {
             // Crear un administrador de cookies con una ruta específica para este perfil
             std::string cookiePath = "/cookies/" + profile_id_;
-            cookie_manager_ = CefCookieManager::CreateManager(cookiePath, false, nullptr);
+            cookie_manager_ = CefCookieManager::Create(cookiePath, false, nullptr);
         }
         return cookie_manager_;
     }
