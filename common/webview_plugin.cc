@@ -267,19 +267,39 @@ namespace webview_cef
 		}
 		else if (name.compare("create") == 0)
 		{
-			const auto &args = std::get<flutter::EncodableList>(values);
-			std::string url = std::get<std::string>(args[0]);
+			// Obtener la URL del primer argumento
+			std::string url = "";
 			std::string profileId = "";
-			if (args.size() > 1)
+
+			if (values != nullptr)
 			{
-				profileId = std::get<std::string>(args[1]);
+				WValue *args = values;
+				if (webview_value_get_type(args) == WVALUE_TYPE_LIST)
+				{
+					// Obtener la URL del primer elemento de la lista
+					WValue *urlValue = webview_value_get_list_value(args, 0);
+					if (urlValue != nullptr && webview_value_get_type(urlValue) == WVALUE_TYPE_STRING)
+					{
+						url = webview_value_get_string(urlValue);
+					}
+
+					// Verificar si hay un segundo elemento (profileId)
+					if (webview_value_get_list_length(args) > 1)
+					{
+						WValue *profileValue = webview_value_get_list_value(args, 1);
+						if (profileValue != nullptr && webview_value_get_type(profileValue) == WVALUE_TYPE_STRING)
+						{
+							profileId = webview_value_get_string(profileValue);
+						}
+					}
+				}
 			}
 
 			m_handler->createBrowser(url, profileId, [=](int browserId)
 									 {
 				std::shared_ptr<WebviewTexture> renderer = m_createTextureFunc();
 				m_renderers[browserId] = renderer;
-				WValue	*response = webview_value_new_list();
+				WValue *response = webview_value_new_list();
 				webview_value_append(response, webview_value_new_int(browserId));
 				webview_value_append(response, webview_value_new_int(renderer->textureId));
 				result(1, response);
