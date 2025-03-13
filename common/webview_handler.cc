@@ -383,42 +383,12 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     std::string cachePath = "/cache/" + profileId;
     CefString(&settings.cache_path) = cachePath;
 
-    // Crear un manejador de contexto personalizado para este perfil
-    CefRefPtr<ProfileRequestContextHandler> handler = new ProfileRequestContextHandler(profileId);
-
-    // Crear y almacenar el contexto
-    CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, handler);
+    // Crear y almacenar el contexto sin un manejador personalizado
+    CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
     profile_contexts_[profileId] = context;
 
     return context;
 }
-
-// Clase para manejar el contexto de solicitud específico del perfil
-class ProfileRequestContextHandler : public CefRequestContextHandler
-{
-public:
-    explicit ProfileRequestContextHandler(const std::string &profileId)
-        : profile_id_(profileId) {}
-
-    // Proporcionar un administrador de cookies específico para este perfil
-    CefRefPtr<CefCookieManager> GetCookieManager() override
-    {
-        if (!cookie_manager_)
-        {
-            // Crear un administrador de cookies con una ruta específica para este perfil
-            std::string cookiePath = "/cookies/" + profile_id_;
-            cookie_manager_ = CefCookieManager::Create(cookiePath, false, nullptr);
-        }
-        return cookie_manager_;
-    }
-
-private:
-    std::string profile_id_;
-    CefRefPtr<CefCookieManager> cookie_manager_;
-
-    IMPLEMENT_REFCOUNTING(ProfileRequestContextHandler);
-    DISALLOW_COPY_AND_ASSIGN(ProfileRequestContextHandler);
-};
 
 void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY)
 {
