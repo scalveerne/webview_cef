@@ -267,31 +267,25 @@ namespace webview_cef
 		}
 		else if (name.compare("create") == 0)
 		{
-			// Obtener la URL del primer argumento
+			// Obtener la URL y profileId de los argumentos
 			std::string url = "";
 			std::string profileId = "";
 
 			if (values != nullptr)
 			{
 				WValue *args = values;
-				if (webview_value_get_type(args) == WVALUE_TYPE_LIST)
+				// Obtener la URL del primer argumento
+				WValue *urlValue = webview_value_get_list_value(args, 0);
+				if (urlValue != nullptr)
 				{
-					// Obtener la URL del primer elemento de la lista
-					WValue *urlValue = webview_value_get_list_value(args, 0);
-					if (urlValue != nullptr && webview_value_get_type(urlValue) == WVALUE_TYPE_STRING)
-					{
-						url = webview_value_get_string(urlValue);
-					}
+					url = webview_value_get_string(urlValue);
+				}
 
-					// Verificar si hay un segundo elemento (profileId)
-					if (webview_value_get_list_length(args) > 1)
-					{
-						WValue *profileValue = webview_value_get_list_value(args, 1);
-						if (profileValue != nullptr && webview_value_get_type(profileValue) == WVALUE_TYPE_STRING)
-						{
-							profileId = webview_value_get_string(profileValue);
-						}
-					}
+				// Verificar si hay un segundo argumento para profileId
+				WValue *profileValue = webview_value_get_list_value(args, 1);
+				if (profileValue != nullptr)
+				{
+					profileId = webview_value_get_string(profileValue);
 				}
 			}
 

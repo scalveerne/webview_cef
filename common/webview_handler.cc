@@ -319,7 +319,35 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
     window_info.SetAsWindowless(0);
 
     // Obtener o crear el contexto de solicitud para este perfil
-    CefRefPtr<CefRequestContext> context = GetRequestContextForProfile(profileId);
+    CefRefPtr<CefRequestContext> context;
+
+    // Si no hay ID de perfil, usar el contexto global
+    if (profileId.empty())
+    {
+        context = CefRequestContext::GetGlobalContext();
+    }
+    else
+    {
+        // Buscar si ya existe un contexto para este perfil
+        auto it = profile_contexts_.find(profileId);
+        if (it != profile_contexts_.end())
+        {
+            context = it->second;
+        }
+        else
+        {
+            // Crear un nuevo contexto para este perfil
+            CefRequestContextSettings settings;
+
+            // Configurar rutas específicas para el perfil
+            std::string cachePath = "/cache/" + profileId;
+            CefString(&settings.cache_path) = cachePath;
+
+            // Crear y almacenar el contexto
+            context = CefRequestContext::CreateContext(settings, nullptr);
+            profile_contexts_[profileId] = context;
+        }
+    }
 
     // Crear el navegador con el contexto específico del perfil
     callback(CefBrowserHost::CreateBrowserSync(
