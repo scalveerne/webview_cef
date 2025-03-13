@@ -6,6 +6,7 @@
 #define CEF_TESTS_CEFSIMPLE_SIMPLE_HANDLER_H_
 
 #include "include/cef_client.h"
+#include "include/cef_request_context_handler.h"
 
 #include <functional>
 #include <list>
