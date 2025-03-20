@@ -201,6 +201,14 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                    CefRefPtr<CefDictionaryValue> &extra_info,
                                    bool *no_javascript_access)
 {
+    // Ignorar URLs de reCAPTCHA y permitir que se abran como popup
+    std::string url_str = target_url.ToString();
+    if (url_str.find("google.com/recaptcha") != std::string::npos)
+    {
+        return false; // Permitir que se abra como popup
+    }
+
+    // Para otras URLs, comportamiento actual
     loadUrl(browser->GetIdentifier(), target_url);
     return true;
 }
