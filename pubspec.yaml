@@ -21,8 +21,8 @@ dev_dependencies:
 flutter:
   plugin:
     platforms:
-      macos:
-        pluginClass: WebviewCefPlugin
+      # macos:
+      #   pluginClass: WebviewCefPlugin
       windows:
         pluginClass: WebviewCefPluginCApi
       linux:

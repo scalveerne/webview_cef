@@ -248,7 +248,8 @@ void WebviewHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
 void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                  CefLoadHandler::TransitionType transition_type)
 {
-    if (onLoadStart)
+    // Solo notificar cuando se trate del frame principal
+    if (onLoadStart && frame->IsMain())
     {
         onLoadStart(browser->GetIdentifier(), frame->GetURL());
     }
