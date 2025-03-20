@@ -118,7 +118,6 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
             command_line->AppendSwitch("disable-gpu-compositing");
         }
 
-        command_line->AppendSwitch("disable-web-security"); // disable web security
         command_line->AppendSwitch("allow-running-insecure-content");
         command_line->AppendSwitch("disable-popup-blocking"); // allow running insecure content in secure pages
         // Don't create a "GPUCache" directory when cache-path is unspecified.
