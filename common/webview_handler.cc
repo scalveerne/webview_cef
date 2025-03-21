@@ -484,7 +484,34 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
 
                 // Si es clic derecho, registramos para depuración
                 std::stringstream js;
-                js << "console.log('Clic derecho detectado en (" << x << ", " << y << ")')";
+                js << "console.log('Clic derecho detectado en (" << x << ", " << y << ")');";
+
+                // Inyectar código JavaScript para crear un evento contextmenu
+                js << "(() => {";
+                js << "  try {";
+                js << "    const evt = new MouseEvent('contextmenu', {";
+                js << "      bubbles: true,";
+                js << "      cancelable: true,";
+                js << "      view: window,";
+                js << "      button: 2,";
+                js << "      buttons: 2,";
+                js << "      clientX: " << x << ",";
+                js << "      clientY: " << y;
+                js << "    });";
+                js << "    const element = document.elementFromPoint(" << x << ", " << y << ");";
+                js << "    console.log('Enviando evento contextmenu a elemento:', element);";
+                js << "    if (element) {";
+                js << "      element.dispatchEvent(evt);";
+                js << "      console.log('Evento contextmenu enviado al elemento');";
+                js << "    } else {";
+                js << "      document.body.dispatchEvent(evt);";
+                js << "      console.log('Evento contextmenu enviado al body');";
+                js << "    }";
+                js << "  } catch(e) {";
+                js << "    console.error('Error al enviar evento contextmenu:', e);";
+                js << "  }";
+                js << "})();";
+
                 it->second.browser->GetMainFrame()->ExecuteJavaScript(
                     js.str(), it->second.browser->GetMainFrame()->GetURL(), 0);
             }
