@@ -477,135 +477,182 @@ uint32_t convertKeyModifiers(KeyboardModifiers modifiers)
     return cef_modifiers;
 }
 
-void WebviewHandler::cursorClick(CefRefPtr<CefBrowser> browser, int x, int y,
-                                 KeyboardModifiers modifiers, bool down,
-                                 MouseButton button)
+void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int button)
 {
-    // Obtener info del navegador
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it == browser_map_.end())
+    auto it = browser_map_.find(browserId);
+    if (it != browser_map_.end())
     {
-        return;
-    }
+        CefMouseEvent ev;
+        ev.x = x;
+        ev.y = y;
 
-    auto &info = it->second;
-
-    // Tiempo actual
-    uint64_t current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                std::chrono::system_clock::now().time_since_epoch())
-                                .count();
-
-    // Determinar si es un clic múltiple basado en el tiempo y la proximidad
-    bool is_multi_click = false;
-    if (button == kMouseLeft && down)
-    {
-        int dx = std::abs(x - info.last_click_x);
-        int dy = std::abs(y - info.last_click_y);
-
-        if (dx <= MULTI_CLICK_TOLERANCE && dy <= MULTI_CLICK_TOLERANCE &&
-            (current_time - info.last_click_time) <= MULTI_CLICK_TIME)
+        // Asegurar que click_count siempre sea al menos 1
+        if (it->second.click_count < 1)
         {
-            is_multi_click = true;
-            info.click_count++;
-        }
-        else
-        {
-            info.click_count = 1;
+            it->second.click_count = 1;
         }
 
-        // Actualizar posición y tiempo del último clic
-        info.last_click_x = x;
-        info.last_click_y = y;
-        info.last_click_time = current_time;
-    }
-
-    // Asegurar que click_count nunca sea menor que 1
-    if (info.click_count < 1)
-    {
-        info.click_count = 1;
-    }
-
-    // Manejar el evento según el tipo de botón
-    if (button == kMouseRight)
-    {
-        // Para el botón derecho, solo manejamos directamente en JavaScript y no enviamos eventos al CEF
-        if (down)
+        // 0 = botón izquierdo, 1 = botón central, 2 = botón derecho
+        if (button == 2)
         {
-            // Obtener el frame principal
-            CefRefPtr<CefFrame> frame = browser->GetMainFrame();
-            if (frame)
+            // Configurar para clic derecho
+            ev.modifiers = EVENTFLAG_RIGHT_MOUSE_BUTTON;
+
+            if (!up)
             {
-                // Inyectar JavaScript para simular un clic derecho
+                // Para clic derecho NO enviamos eventos de mouse al CEF
+                // Solo inyectamos código JavaScript
+
+                // Si es clic derecho, registramos para depuración
                 std::stringstream js;
-                js << "(() => {";
-                js << "  try {";
-                js << "    console.log('Right-click detected at (" << x << ", " << y << ")');";
-                js << "    const evt = new MouseEvent('contextmenu', {";
-                js << "      bubbles: true,";
-                js << "      cancelable: true,";
-                js << "      clientX: " << x << ",";
-                js << "      clientY: " << y << ",";
-                js << "      button: 2,"; // Botón derecho
-                js << "      buttons: 2"; // Estado de botones: botón derecho presionado
-                js << "    });";
-                js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
-                js << "    if (element) {";
-                js << "      try {";
-                js << "        element.dispatchEvent(evt);";
-                js << "      } catch(e) {";
-                js << "        console.error('Error dispatching contextmenu event:', e);";
-                js << "        if (document.body) document.body.dispatchEvent(evt);";
-                js << "        else document.dispatchEvent(evt);";
-                js << "      }";
-                js << "    } else if (document.body) {";
-                js << "      document.body.dispatchEvent(evt);";
-                js << "    } else {";
-                js << "      document.dispatchEvent(evt);";
-                js << "    }";
-                js << "  } catch(e) {";
-                js << "    console.error('Error in right-click handler:', e);";
-                js << "  }";
-                js << "})();";
+                js << "console.log('Clic derecho detectado en (" << x << ", " << y << ")');";
 
-                frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
+                try
+                {
+                    // Inyectar código JavaScript para crear un evento contextmenu
+                    js << "(() => {";
+                    js << "  try {";
+                    js << "    const evt = new MouseEvent('contextmenu', {";
+                    js << "      bubbles: true,";
+                    js << "      cancelable: true,";
+                    js << "      view: window,";
+                    js << "      button: 2,";
+                    js << "      buttons: 2,";
+                    js << "      clientX: " << x << ",";
+                    js << "      clientY: " << y;
+                    js << "    });";
+                    js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
+                    js << "    console.log('Enviando evento contextmenu a elemento:', element);";
+                    js << "    if (element) {";
+                    js << "      try {";
+                    js << "        element.dispatchEvent(evt);";
+                    js << "        console.log('Evento contextmenu enviado al elemento');";
+                    js << "      } catch(e) {";
+                    js << "        console.error('Error al enviar evento al elemento:', e);";
+                    js << "        // Intentar con el documento si falla en el elemento";
+                    js << "        document.dispatchEvent(evt);";
+                    js << "      }";
+                    js << "    } else if (document.body) {";
+                    js << "      document.body.dispatchEvent(evt);";
+                    js << "      console.log('Evento contextmenu enviado al body');";
+                    js << "    } else {";
+                    js << "      document.dispatchEvent(evt);";
+                    js << "      console.log('Evento contextmenu enviado al document');";
+                    js << "    }";
+                    js << "  } catch(e) {";
+                    js << "    console.error('Error al enviar evento contextmenu:', e);";
+                    js << "  }";
+                    js << "})();";
+
+                    // Obtener el frame principal de manera segura
+                    CefRefPtr<CefFrame> frame = it->second.browser->GetMainFrame();
+                    if (frame)
+                    {
+                        frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
+                    }
+                }
+                catch (...)
+                {
+                    // Capturar cualquier excepción durante el procesamiento de clic derecho
+                    // para evitar que la aplicación se cierre
+                }
             }
-        }
-        // No hacemos nada para el evento 'up' del botón derecho
-    }
-    else
-    {
-        // Para otros botones (principalmente izquierdo), procedemos normalmente
-        CefMouseEvent mouse_event;
-        mouse_event.x = x;
-        mouse_event.y = y;
-        mouse_event.modifiers = convertKeyModifiers(modifiers);
-
-        CefBrowserHost::MouseButtonType cef_mouse_button;
-        switch (button)
-        {
-        case kMouseLeft:
-            cef_mouse_button = MBT_LEFT;
-            break;
-        case kMouseMiddle:
-            cef_mouse_button = MBT_MIDDLE;
-            break;
-        default:
-            // No debería llegar aquí
-            return;
-        }
-
-        // Usar el valor actual de click_count, asegurando que sea al menos 1
-        int click_count = info.click_count;
-        if (click_count < 1)
-            click_count = 1;
-
-        if (down)
-        {
-            browser->GetHost()->SendMouseClickEvent(mouse_event, cef_mouse_button, false, click_count);
+            // No hacemos nada para el evento 'up' del botón derecho
         }
         else
         {
-            browser->GetHost()->SendMouseClickEvent(mouse_event, cef_mouse_button, true, click_count);
+            // Clic izquierdo - Implementar lógica de múltiples clics
+            ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
+
+            if (!up) // Evento de presionar botón
+            {
+                try
+                {
+                    // Obtener tiempo actual en milisegundos
+                    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch())
+                                   .count();
+
+                    // Verificar si es un clic múltiple (mismo lugar y en tiempo cercano)
+                    bool isMultiClick = false;
+                    if (now - it->second.last_click_time < browser_info::MULTI_CLICK_TIME)
+                    {
+                        // Verificar si el clic está cerca del anterior
+                        int dx = std::abs(x - it->second.last_click_x);
+                        int dy = std::abs(y - it->second.last_click_y);
+
+                        if (dx <= browser_info::MULTI_CLICK_TOLERANCE &&
+                            dy <= browser_info::MULTI_CLICK_TOLERANCE)
+                        {
+                            isMultiClick = true;
+                        }
+                    }
+
+                    // Actualizar recuento de clics
+                    if (isMultiClick)
+                    {
+                        it->second.click_count++;
+                        if (it->second.click_count > 3)
+                        {
+                            it->second.click_count = 1; // Reiniciar después de triple clic
+                        }
+                    }
+                    else
+                    {
+                        it->second.click_count = 1; // Nuevo clic simple
+                    }
+
+                    // Guardar información del clic actual
+                    it->second.last_click_x = x;
+                    it->second.last_click_y = y;
+                    it->second.last_click_time = now;
+                }
+                catch (...)
+                {
+                    // Si algo falla, asegurar click_count = 1
+                    it->second.click_count = 1;
+                }
+
+                // Asegurar que click_count siempre sea al menos 1
+                if (it->second.click_count < 1)
+                {
+                    it->second.click_count = 1;
+                }
+
+                if (it->second.is_dragging)
+                {
+                    it->second.browser->GetHost()->DragTargetDrop(ev);
+                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                    it->second.is_dragging = false;
+                }
+                else
+                {
+                    // Enviar evento de clic con el recuento correcto
+                    it->second.browser->GetHost()->SendMouseClickEvent(
+                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                }
+            }
+            else // Evento de soltar botón
+            {
+                // Asegurar que click_count siempre sea al menos 1
+                if (it->second.click_count < 1)
+                {
+                    it->second.click_count = 1;
+                }
+
+                if (it->second.is_dragging)
+                {
+                    it->second.browser->GetHost()->DragTargetDrop(ev);
+                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                    it->second.is_dragging = false;
+                }
+                else
+                {
+                    // Enviar evento de soltar con el mismo recuento de clics
+                    it->second.browser->GetHost()->SendMouseClickEvent(
+                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                }
+            }
         }
     }
 }
