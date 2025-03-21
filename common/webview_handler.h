@@ -22,6 +22,23 @@
     0x00000000 // White SkColor value for background,
                // same as Blink.
 
+// Definición de enums para botones del mouse y modificadores de teclado
+enum MouseButton
+{
+    kMouseLeft = 0,
+    kMouseMiddle = 1,
+    kMouseRight = 2
+};
+
+enum KeyboardModifiers
+{
+    kNoModifiers = 0,
+    kShiftKey = 1 << 0,
+    kControlKey = 1 << 1,
+    kAltKey = 1 << 2,
+    kMetaKey = 1 << 3
+};
+
 struct browser_info
 {
     CefRefPtr<CefBrowser> browser;
@@ -35,7 +52,7 @@ struct browser_info
     // Variables para múltiples clics
     int last_click_x = 0;
     int last_click_y = 0;
-    int click_count = 0;
+    int click_count = 1;
     uint64_t last_click_time = 0;
     static const int MULTI_CLICK_TOLERANCE = 5;   // Tolerancia en píxeles para considerar clics en el mismo lugar
     static const uint64_t MULTI_CLICK_TIME = 500; // Tiempo máximo entre clics (milisegundos)
@@ -176,7 +193,7 @@ public:
 
     void sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY);
     void changeSize(int browserId, float a_dpi, int width, int height);
-    void cursorClick(int browserId, int x, int y, bool up, int button = 0);
+    void cursorClick(CefRefPtr<CefBrowser> browser, int x, int y, KeyboardModifiers modifiers, bool down, MouseButton button);
     void cursorMove(int browserId, int x, int y, bool dragging);
     void sendKeyEvent(CefKeyEvent &ev);
     void loadUrl(int browserId, std::string url);
