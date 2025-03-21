@@ -123,41 +123,9 @@ void WebviewHandler::OnAddressChange(CefRefPtr<CefBrowser> browser,
                                      CefRefPtr<CefFrame> frame,
                                      const CefString &url)
 {
-    if (frame->IsMain())
+    if (onUrlChangedEvent)
     {
-        std::string urlStr = url.ToString();
-
-        // Detectar si estamos en una página de Cloudflare
-        if (urlStr.find("cloudflare") != std::string::npos ||
-            urlStr.find("challenge") != std::string::npos ||
-            urlStr.find("cf_chl") != std::string::npos ||
-            urlStr.find("__cf_chl") != std::string::npos)
-        {
-
-            // Esperar un poco y ejecutar script para interactuar con el challenge
-            std::string waitAndInteractScript =
-                "setTimeout(function() {"
-                "  console.log('[CEF] Detectada página de Cloudflare, intentando interactuar...');"
-                "  // Hacer clic en cualquier botón visible"
-                "  var buttons = document.querySelectorAll('button, input[type=submit]');"
-                "  for (var i = 0; i < buttons.length; i++) {"
-                "    if (buttons[i].offsetParent !== null) {"
-                "      console.log('[CEF] Haciendo clic en botón:', buttons[i].textContent || buttons[i].value);"
-                "      buttons[i].click();"
-                "    }"
-                "  }"
-                "  // También intentar hacer scroll para activar cualquier detección basada en interacción"
-                "  window.scrollTo(0, 100);"
-                "  setTimeout(function() { window.scrollTo(0, 0); }, 500);"
-                "}, 1500);";
-
-            frame->ExecuteJavaScript(waitAndInteractScript, urlStr, 0);
-        }
-
-        if (onUrlChangedEvent)
-        {
-            onUrlChangedEvent(browser->GetIdentifier(), url);
-        }
+        onUrlChangedEvent(browser->GetIdentifier(), url);
     }
 }
 
@@ -241,27 +209,8 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
         url_str.find("captcha") != std::string::npos ||
         url_str.find("turnstile") != std::string::npos ||
         url_str.find("recaptcha") != std::string::npos ||
-        url_str.find("hcaptcha") != std::string::npos ||
-        url_str.find("challenge") != std::string::npos ||
-        url_str.find("cf_chl") != std::string::npos ||
-        url_str.find("__cf_chl") != std::string::npos)
+        url_str.find("hcaptcha") != std::string::npos)
     {
-        // Usar el mismo cliente para el popup
-        client = this;
-
-        // No restringir acceso a JavaScript
-        if (no_javascript_access)
-            *no_javascript_access = false;
-
-        // Configurar opciones del navegador para asegurar que Cloudflare funcione
-        settings.javascript = STATE_ENABLED;
-        settings.javascript_close_windows = STATE_ENABLED;
-        settings.javascript_access_clipboard = STATE_ENABLED;
-        settings.local_storage = STATE_ENABLED;
-
-        // Usar windowInfo como está, sin intentar modificar con SetAsPopup/width/height
-        // que no existen en esta implementación
-
         return false; // ¡PERMITIR QUE EL POPUP SE ABRA!
     }
 
@@ -272,17 +221,6 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
 {
-    // Evitar perder el foco cuando Cloudflare está activo
-    std::string url = browser->GetMainFrame()->GetURL().ToString();
-    if (url.find("cloudflare") != std::string::npos ||
-        url.find("challenge") != std::string::npos ||
-        url.find("captcha") != std::string::npos ||
-        url.find("cf_chl") != std::string::npos ||
-        url.find("__cf_chl") != std::string::npos)
-    {
-        return; // No ejecutar blur en elementos de Cloudflare
-    }
-
     executeJavaScript(browser->GetIdentifier(), "document.activeElement.blur()");
 }
 
@@ -324,25 +262,10 @@ void WebviewHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
 void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                  CefLoadHandler::TransitionType transition_type)
 {
-    // Inyectar script anti-detección al inicio de la carga para cualquier página
-    if (frame->IsMain())
+    // Solo notificar cuando se trate del frame principal
+    if (onLoadStart && frame->IsMain())
     {
-        // Script básico para evitar detección temprana
-        std::string earlyAntiDetectionScript =
-            "try {"
-            "  // Ocultar señales de automatización"
-            "  if (window.navigator) {"
-            "    Object.defineProperty(navigator, 'webdriver', {value: false});"
-            "  }"
-            "} catch(e) {}";
-
-        frame->ExecuteJavaScript(earlyAntiDetectionScript, frame->GetURL(), 0);
-
-        // Solo notificar cuando se trate del frame principal
-        if (onLoadStart)
-        {
-            onLoadStart(browser->GetIdentifier(), frame->GetURL());
-        }
+        onLoadStart(browser->GetIdentifier(), frame->GetURL());
     }
     return;
 }
@@ -350,78 +273,6 @@ void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                int httpStatusCode)
 {
-    // Primero verificar si estamos en un sitio con Cloudflare o captcha
-    std::string url = frame->GetURL().ToString();
-    bool isCloudflareOrCaptcha =
-        url.find("cloudflare") != std::string::npos ||
-        url.find("captcha") != std::string::npos ||
-        url.find("challenge") != std::string::npos ||
-        url.find("cf_chl") != std::string::npos ||
-        url.find("__cf_chl") != std::string::npos ||
-        url.find("turnstile") != std::string::npos;
-
-    if (frame->IsMain() && isCloudflareOrCaptcha)
-    {
-        // Inyectar script anti-detección para Cloudflare
-        std::string antiDetectionScript =
-            "try {"
-            "  Object.defineProperty(navigator, 'webdriver', {get: () => false});"
-            "  Object.defineProperty(navigator, 'plugins', {get: () => ["
-            "    {description: 'Portable Document Format',filename: 'internal-pdf-viewer',name: 'Chrome PDF Plugin',MimeTypes: [{description: 'Portable Document Format',suffixes: 'pdf',type: 'application/pdf'}]},"
-            "    {description: '',filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',name: 'Chrome PDF Viewer',MimeTypes: [{description: '',suffixes: 'pdf',type: 'application/pdf'}]},"
-            "    {description: '',filename: 'internal-nacl-plugin',name: 'Native Client',MimeTypes: [{description: 'Native Client Executable',suffixes: '',type: 'application/x-nacl'},{description: 'Portable Native Client Executable',suffixes: '',type: 'application/x-pnacl'}]}"
-            "  ]});"
-            "  Object.defineProperty(navigator, 'languages', {get: () => ['es-ES', 'es', 'en-US', 'en']});"
-            "  // Eliminar el indicador de Chrome Automation"
-            "  delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;"
-            "  delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;"
-            "  delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;"
-            "  const originalQuery = window.navigator.permissions.query;"
-            "  window.navigator.permissions.query = (parameters) => {"
-            "    if (parameters.name === 'notifications') { return Promise.resolve({state: Notification.permission}); }"
-            "    return originalQuery(parameters);"
-            "  };"
-            "  console.log('[CEF] Anti-detección aplicada');"
-            "} catch(e) {"
-            "  console.error('[CEF] Error en anti-detección:', e);"
-            "}";
-
-        frame->ExecuteJavaScript(antiDetectionScript, frame->GetURL(), 0);
-
-        // Esperar un momento y luego verificar si hay elementos de Cloudflare para interactuar
-        std::string interactWithCloudflareChallengeScript =
-            "setTimeout(function() {"
-            "  // Buscar botones específicos de Cloudflare y hacer clic en ellos"
-            "  try {"
-            "    var cfButtons = document.querySelectorAll('button.cf-button, button#challenge-stage, input[type=submit]');"
-            "    if(cfButtons.length > 0) {"
-            "      for(var i=0; i<cfButtons.length; i++) {"
-            "        if(cfButtons[i].offsetParent !== null) { // Solo si es visible"
-            "          cfButtons[i].click();"
-            "          console.log('[CEF] Botón Cloudflare clickeado');"
-            "        }"
-            "      }"
-            "    }"
-            "    // Interactuar con iframes si existen (caso común en reCAPTCHA)"
-            "    var iframes = document.querySelectorAll('iframe');"
-            "    for(var j=0; j<iframes.length; j++) {"
-            "      try {"
-            "        if(iframes[j].getAttribute('src') && "
-            "           (iframes[j].getAttribute('src').includes('captcha') || "
-            "            iframes[j].getAttribute('src').includes('turnstile') || "
-            "            iframes[j].getAttribute('src').includes('cloudflare'))) {"
-            "          console.log('[CEF] Captcha/Turnstile iframe detectado');"
-            "        }"
-            "      } catch(e) {}"
-            "    }"
-            "  } catch(e) {"
-            "    console.error('[CEF] Error interactuando con Cloudflare:', e);"
-            "  }"
-            "}, 2000);"; // Esperar 2 segundos
-
-        frame->ExecuteJavaScript(interactWithCloudflareChallengeScript, frame->GetURL(), 0);
-    }
-
     if (onLoadEnd && frame->IsMain())
     {
         onLoadEnd(browser->GetIdentifier(), frame->GetURL());
