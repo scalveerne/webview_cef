@@ -495,12 +495,57 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
         // 0 = botón izquierdo, 1 = botón central, 2 = botón derecho
         if (button == 2)
         {
-            // Configurar para clic derecho
-            ev.modifiers = EVENTFLAG_RIGHT_MOUSE_BUTTON;
+            // Para clic derecho, NO enviamos eventos de mouse al CEF
+            // Solo inyectamos JavaScript para disparar el evento contextmenu
 
-            // Enviamos el evento de mouse al CEF directamente para el botón derecho
-            it->second.browser->GetHost()->SendMouseClickEvent(
-                ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
+            if (!up) // Solo procesamos el evento de presionar, no el de soltar
+            {
+                try
+                {
+                    // Inyectar código JavaScript para crear un evento contextmenu
+                    std::stringstream js;
+                    js << "(() => {";
+                    js << "  try {";
+                    js << "    console.log('Right-click detected at (" << x << ", " << y << ")');";
+                    js << "    const evt = new MouseEvent('contextmenu', {";
+                    js << "      bubbles: true,";
+                    js << "      cancelable: true,";
+                    js << "      clientX: " << x << ",";
+                    js << "      clientY: " << y << ",";
+                    js << "      button: 2,"; // Botón derecho
+                    js << "      buttons: 2"; // Estado de botones: botón derecho presionado
+                    js << "    });";
+                    js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
+                    js << "    if (element) {";
+                    js << "      try {";
+                    js << "        element.dispatchEvent(evt);";
+                    js << "      } catch(e) {";
+                    js << "        console.error('Error dispatching contextmenu event:', e);";
+                    js << "        if (document.body) document.body.dispatchEvent(evt);";
+                    js << "        else document.dispatchEvent(evt);";
+                    js << "      }";
+                    js << "    } else if (document.body) {";
+                    js << "      document.body.dispatchEvent(evt);";
+                    js << "    } else {";
+                    js << "      document.dispatchEvent(evt);";
+                    js << "    }";
+                    js << "  } catch(e) {";
+                    js << "    console.error('Error in right-click handler:', e);";
+                    js << "  }";
+                    js << "})();";
+
+                    CefRefPtr<CefFrame> frame = it->second.browser->GetMainFrame();
+                    if (frame)
+                    {
+                        frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
+                    }
+                }
+                catch (...)
+                {
+                    // Capturar cualquier excepción para evitar que la aplicación se cierre
+                }
+            }
+            // No hacemos nada para el evento 'up' del botón derecho
         }
         else
         {
