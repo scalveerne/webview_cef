@@ -128,6 +128,15 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         // Add chrome runtime to pass Cloudflare browser integrity checks
         command_line->AppendSwitch("enable-chrome-runtime");
 
+        // Para evitar la detección de navegador automatizado
+        command_line->AppendSwitch("disable-blink-features=AutomationControlled");
+
+        // Evitar que navigator.webdriver sea true
+        command_line->AppendSwitchWithValue("excludeSwitches", "enable-automation");
+
+        // Deshabilitar las extensiones de automatización
+        command_line->AppendSwitch("no-default-browser-check");
+
         command_line->AppendSwitchWithValue("enable-features", "NetworkService,NetworkServiceInProcess");
         command_line->AppendSwitch("disable-web-security");
 
@@ -176,6 +185,23 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         command_line->AppendSwitchWithValue("user-agent",
                                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                                             "Chrome/120.0.0.0 Safari/537.36");
+
+        // JavaScript a ejecutar en todas las páginas para evitar detección
+        std::string scriptToInject =
+            "Object.defineProperty(navigator, 'webdriver', {get: () => false});"
+            "Object.defineProperty(navigator, 'plugins', {get: () => ["
+            "{description: 'Portable Document Format',filename: 'internal-pdf-viewer',name: 'Chrome PDF Plugin',MimeTypes: [{description: 'Portable Document Format',suffixes: 'pdf',type: 'application/pdf'}]},"
+            "{description: '',filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai',name: 'Chrome PDF Viewer',MimeTypes: [{description: '',suffixes: 'pdf',type: 'application/pdf'}]},"
+            "{description: '',filename: 'internal-nacl-plugin',name: 'Native Client',MimeTypes: [{description: 'Native Client Executable',suffixes: '',type: 'application/x-nacl'},{description: 'Portable Native Client Executable',suffixes: '',type: 'application/x-pnacl'}]}"
+            "]});"
+            "Object.defineProperty(navigator, 'languages', {get: () => ['es-ES', 'es', 'en-US', 'en']});"
+            "const originalQuery = window.navigator.permissions.query;"
+            "window.navigator.permissions.query = (parameters) => {"
+            "  if (parameters.name === 'notifications') { return Promise.resolve({state: Notification.permission}); }"
+            "  return originalQuery(parameters);"
+            "};";
+
+        command_line->AppendSwitchWithValue("js-flags", "--expose_gc");
     }
 
 #ifdef __APPLE__
