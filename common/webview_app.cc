@@ -125,6 +125,10 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         command_line->AppendSwitch("no-sanbox");
         command_line->AppendSwitch("disable-web-security");
 
+        command_line->AppendSwitchWithValue("enable-features", "NetworkService,NetworkServiceInProcess");
+        command_line->AppendSwitch("disable-web-security");
+        command_line->AppendSwitch("enable-chrome-runtime");
+
         // http://www.chromium.org/developers/design-documents/process-models
         if (m_uMode == 1)
         {

@@ -201,6 +201,16 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                    CefRefPtr<CefDictionaryValue> &extra_info,
                                    bool *no_javascript_access)
 {
+    // Convertir URL a string para poder buscar en ella
+    std::string url_str = target_url.ToString();
+
+    // Manejo especial para Cloudflare
+    if (url_str.find("cloudflare") != std::string::npos ||
+        url_str.find("cloudflareinsights") != std::string::npos)
+    {
+        // Permitir que se abra como popup
+        return false;
+    }
 
     // Para otras URLs, comportamiento actual
     loadUrl(browser->GetIdentifier(), target_url);
