@@ -151,6 +151,12 @@ public:
                                      CefRefPtr<CefContextMenuParams> params,
                                      CefRefPtr<CefMenuModel> model) override;
 
+    virtual bool RunContextMenu(CefRefPtr<CefBrowser> browser,
+                                CefRefPtr<CefFrame> frame,
+                                CefRefPtr<CefContextMenuParams> params,
+                                CefRefPtr<CefMenuModel> model,
+                                CefRefPtr<CefRunContextMenuCallback> callback) override;
+
     // Request that all existing browser windows close.
     void CloseAllBrowsers(bool force_close);
 

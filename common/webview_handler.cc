@@ -273,9 +273,33 @@ void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                int httpStatusCode)
 {
-    if (onLoadEnd && frame->IsMain())
+    if (frame->IsMain())
     {
-        onLoadEnd(browser->GetIdentifier(), frame->GetURL());
+        // Inyectar detector de eventos contextmenu para depuración
+        std::string script = R"(
+            (function() {
+                if (window.__contextMenuHandlerInstalled) return;
+                window.__contextMenuHandlerInstalled = true;
+                
+                console.log('Instalando manejador de contextmenu');
+                document.addEventListener('contextmenu', function(e) {
+                    console.log('¡Evento contextmenu detectado!', e);
+                }, true);
+                
+                // Intentar prevenir el menú nativo del navegador
+                document.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    return false;
+                }, false);
+            })();
+        )";
+
+        frame->ExecuteJavaScript(script, frame->GetURL(), 0);
+
+        if (onLoadEnd)
+        {
+            onLoadEnd(browser->GetIdentifier(), frame->GetURL());
+        }
     }
 }
 
@@ -835,7 +859,41 @@ void WebviewHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
                                          CefRefPtr<CefContextMenuParams> params,
                                          CefRefPtr<CefMenuModel> model)
 {
-    // Limpiar el modelo de menú para que no se muestre el menú contextual
-    // Esto permite que el evento contextmenu llegue a JavaScript
+    // Limpiar el modelo de menú para que no se muestre el menú contextual nativo
     model->Clear();
+}
+
+bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
+                                    CefRefPtr<CefFrame> frame,
+                                    CefRefPtr<CefContextMenuParams> params,
+                                    CefRefPtr<CefMenuModel> model,
+                                    CefRefPtr<CefRunContextMenuCallback> callback)
+{
+    // Cancelar inmediatamente el menú contextual
+    callback->Cancel();
+
+    // Ahora vamos a inyectar JavaScript para simular un evento contextmenu
+    std::stringstream js;
+    js << "(() => {";
+    js << "  const evt = new MouseEvent('contextmenu', {";
+    js << "    bubbles: true,";
+    js << "    cancelable: true,";
+    js << "    clientX: " << params->GetXCoord() << ",";
+    js << "    clientY: " << params->GetYCoord() << ",";
+    js << "    button: 2,"; // Botón derecho
+    js << "    buttons: 2"; // Estado de botones: botón derecho presionado
+    js << "  });";
+    js << "  const element = document.elementFromPoint(" << params->GetXCoord() << ", " << params->GetYCoord() << ");";
+    js << "  if (element) {";
+    js << "    element.dispatchEvent(evt);";
+    js << "  } else {";
+    js << "    document.body.dispatchEvent(evt);";
+    js << "  }";
+    js << "  console.log('Dispatched contextmenu event at (" << params->GetXCoord() << ", " << params->GetYCoord() << ")');";
+    js << "})();";
+
+    frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
+
+    // Devolvemos true para indicar que hemos manejado el menú contextual
+    return true;
 }
