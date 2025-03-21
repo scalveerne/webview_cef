@@ -461,7 +461,7 @@ void WebviewHandler::changeSize(int browserId, float a_dpi, int w, int h)
     }
 }
 
-void WebviewHandler::cursorClick(int browserId, int x, int y, bool up)
+void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int button)
 {
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
@@ -469,16 +469,47 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up)
         CefMouseEvent ev;
         ev.x = x;
         ev.y = y;
-        ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
-        if (up && it->second.is_dragging)
+
+        // 0 = botón izquierdo, 1 = botón central, 2 = botón derecho
+        if (button == 2)
         {
-            it->second.browser->GetHost()->DragTargetDrop(ev);
-            it->second.browser->GetHost()->DragSourceSystemDragEnded();
-            it->second.is_dragging = false;
+            // Configurar para clic derecho
+            ev.modifiers = EVENTFLAG_RIGHT_MOUSE_BUTTON;
+
+            if (!up)
+            {
+                // Down event (presionar botón derecho)
+                it->second.browser->GetHost()->SendMouseClickEvent(
+                    ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
+
+                // Si es clic derecho, registramos para depuración
+                std::stringstream js;
+                js << "console.log('Clic derecho detectado en (" << x << ", " << y << ")')";
+                it->second.browser->GetMainFrame()->ExecuteJavaScript(
+                    js.str(), it->second.browser->GetMainFrame()->GetURL(), 0);
+            }
+            else
+            {
+                // Up event (soltar botón derecho)
+                it->second.browser->GetHost()->SendMouseClickEvent(
+                    ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
+            }
         }
         else
         {
-            it->second.browser->GetHost()->SendMouseClickEvent(ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, 1);
+            // Configurar para clic izquierdo (comportamiento original)
+            ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
+            if (up && it->second.is_dragging)
+            {
+                it->second.browser->GetHost()->DragTargetDrop(ev);
+                it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                it->second.is_dragging = false;
+            }
+            else
+            {
+                it->second.browser->GetHost()->SendMouseClickEvent(
+                    ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, 1);
+            }
         }
     }
 }

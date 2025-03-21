@@ -582,24 +582,42 @@ namespace webview_cef
 
 	int WebviewPlugin::cursorAction(WValue *args, std::string name)
 	{
-		if (!args || webview_value_get_len(args) != 3)
+		if (!args || webview_value_get_len(args) < 3)
 		{
 			return 0;
 		}
 		int browserId = int(webview_value_get_int(webview_value_get_list_value(args, 0)));
 		int x = int(webview_value_get_int(webview_value_get_list_value(args, 1)));
 		int y = int(webview_value_get_int(webview_value_get_list_value(args, 2)));
+
+		// Obtener el botón del ratón si está disponible (4º argumento)
+		int button = 0; // 0 = izquierdo por defecto
+		if (webview_value_get_len(args) >= 4)
+		{
+			button = int(webview_value_get_int(webview_value_get_list_value(args, 3)));
+		}
+
+		// Si es botón 2, asumimos que es clic derecho
+		if (button == 2)
+		{
+			button = 2; // Clic derecho
+		}
+		else
+		{
+			button = 0; // Clic izquierdo
+		}
+
 		if (!x && !y)
 		{
 			return 0;
 		}
 		if (name.compare("cursorClickDown") == 0)
 		{
-			m_handler->cursorClick(browserId, x, y, false);
+			m_handler->cursorClick(browserId, x, y, false, button);
 		}
 		else if (name.compare("cursorClickUp") == 0)
 		{
-			m_handler->cursorClick(browserId, x, y, true);
+			m_handler->cursorClick(browserId, x, y, true, button);
 		}
 		else if (name.compare("cursorMove") == 0)
 		{

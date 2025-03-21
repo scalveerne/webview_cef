@@ -231,22 +231,22 @@ class WebViewController extends ValueNotifier<bool> {
         [_browserId, position.dx.round(), position.dy.round()]);
   }
 
-  Future<void> _cursorClickDown(Offset position) async {
+  Future<void> _cursorClickDown(Offset position, int button) async {
     if (_isDisposed) {
       return;
     }
     assert(value);
     return _pluginChannel.invokeMethod('cursorClickDown',
-        [_browserId, position.dx.round(), position.dy.round()]);
+        [_browserId, position.dx.round(), position.dy.round(), button]);
   }
 
-  Future<void> _cursorClickUp(Offset position) async {
+  Future<void> _cursorClickUp(Offset position, int button) async {
     if (_isDisposed) {
       return;
     }
     assert(value);
     return _pluginChannel.invokeMethod('cursorClickUp',
-        [_browserId, position.dx.round(), position.dy.round()]);
+        [_browserId, position.dx.round(), position.dy.round(), button]);
   }
 
   /// Sets the horizontal and vertical scroll delta.
@@ -437,10 +437,10 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
                 }
               });
             }
-            _controller._cursorClickDown(ev.localPosition);
+            _controller._cursorClickDown(ev.localPosition, ev.buttons);
           },
           onPointerUp: (ev) {
-            _controller._cursorClickUp(ev.localPosition);
+            _controller._cursorClickUp(ev.localPosition, ev.buttons);
           },
           onPointerMove: (ev) {
             _controller._cursorDragging(ev.localPosition);

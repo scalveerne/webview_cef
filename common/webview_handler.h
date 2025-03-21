@@ -168,7 +168,7 @@ public:
 
     void sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY);
     void changeSize(int browserId, float a_dpi, int width, int height);
-    void cursorClick(int browserId, int x, int y, bool up);
+    void cursorClick(int browserId, int x, int y, bool up, int button = 0);
     void cursorMove(int browserId, int x, int y, bool dragging);
     void sendKeyEvent(CefKeyEvent &ev);
     void loadUrl(int browserId, std::string url);
