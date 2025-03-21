@@ -1,0 +1,16 @@
+void MiClaseApp::OnBeforeCommandLineProcessing(
+    const CefString& process_type,
+    CefRefPtr<CefCommandLine> command_line) {
+  
+  // Activar Chrome Runtime Mode
+  command_line->AppendSwitch("enable-chrome-runtime");
+  
+  // Otras opciones útiles para captchas
+  command_line->AppendSwitch("disable-web-security");
+  command_line->AppendSwitch("enable-features", "NetworkService,NetworkServiceInProcess");
+  
+  // User Agent moderno
+  command_line->AppendSwitchWithValue("user-agent", 
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/96.0.4664.110 Safari/537.36");
+} 
