@@ -38,7 +38,8 @@ class WebviewHandler : public CefClient,
                        public CefLifeSpanHandler,
                        public CefFocusHandler,
                        public CefLoadHandler,
-                       public CefRenderHandler
+                       public CefRenderHandler,
+                       public CefContextMenuHandler
 {
 public:
     // Paint callback
@@ -74,6 +75,7 @@ public:
     }
     virtual CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
     virtual CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
+    virtual CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
 
     bool OnProcessMessageReceived(
         CefRefPtr<CefBrowser> browser,
@@ -142,6 +144,12 @@ public:
                                int x,
                                int y) override;
     virtual void OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser, const CefRange &selection_range, const CefRenderHandler::RectList &character_bounds) override;
+
+    // CefContextMenuHandler method:
+    virtual bool OnContextMenu(CefRefPtr<CefBrowser> browser,
+                               CefRefPtr<CefFrame> frame,
+                               CefRefPtr<CefContextMenuParams> params,
+                               CefRefPtr<CefMenuModel> model) override;
 
     // Request that all existing browser windows close.
     void CloseAllBrowsers(bool force_close);

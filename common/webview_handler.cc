@@ -828,3 +828,14 @@ void WebviewHandler::OnPaint(CefRefPtr<CefBrowser> browser, CefRenderHandler::Pa
         onPaintCallback(browser->GetIdentifier(), buffer, w, h);
     }
 }
+
+// CefContextMenuHandler methods
+bool WebviewHandler::OnContextMenu(CefRefPtr<CefBrowser> browser,
+                                   CefRefPtr<CefFrame> frame,
+                                   CefRefPtr<CefContextMenuParams> params,
+                                   CefRefPtr<CefMenuModel> model)
+{
+    // Retornamos true para cancelar el menú contextual nativo de CEF
+    // Esto permitirá que el evento llegue a JavaScript
+    return true;
+}
