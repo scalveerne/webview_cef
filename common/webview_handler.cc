@@ -498,66 +498,9 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
             // Configurar para clic derecho
             ev.modifiers = EVENTFLAG_RIGHT_MOUSE_BUTTON;
 
-            if (!up)
-            {
-                // Para clic derecho NO enviamos eventos de mouse al CEF
-                // Solo inyectamos código JavaScript
-
-                // Si es clic derecho, registramos para depuración
-                std::stringstream js;
-                js << "console.log('Clic derecho detectado en (" << x << ", " << y << ")');";
-
-                try
-                {
-                    // Inyectar código JavaScript para crear un evento contextmenu
-                    js << "(() => {";
-                    js << "  try {";
-                    js << "    const evt = new MouseEvent('contextmenu', {";
-                    js << "      bubbles: true,";
-                    js << "      cancelable: true,";
-                    js << "      view: window,";
-                    js << "      button: 2,";
-                    js << "      buttons: 2,";
-                    js << "      clientX: " << x << ",";
-                    js << "      clientY: " << y;
-                    js << "    });";
-                    js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
-                    js << "    console.log('Enviando evento contextmenu a elemento:', element);";
-                    js << "    if (element) {";
-                    js << "      try {";
-                    js << "        element.dispatchEvent(evt);";
-                    js << "        console.log('Evento contextmenu enviado al elemento');";
-                    js << "      } catch(e) {";
-                    js << "        console.error('Error al enviar evento al elemento:', e);";
-                    js << "        // Intentar con el documento si falla en el elemento";
-                    js << "        document.dispatchEvent(evt);";
-                    js << "      }";
-                    js << "    } else if (document.body) {";
-                    js << "      document.body.dispatchEvent(evt);";
-                    js << "      console.log('Evento contextmenu enviado al body');";
-                    js << "    } else {";
-                    js << "      document.dispatchEvent(evt);";
-                    js << "      console.log('Evento contextmenu enviado al document');";
-                    js << "    }";
-                    js << "  } catch(e) {";
-                    js << "    console.error('Error al enviar evento contextmenu:', e);";
-                    js << "  }";
-                    js << "})();";
-
-                    // Obtener el frame principal de manera segura
-                    CefRefPtr<CefFrame> frame = it->second.browser->GetMainFrame();
-                    if (frame)
-                    {
-                        frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
-                    }
-                }
-                catch (...)
-                {
-                    // Capturar cualquier excepción durante el procesamiento de clic derecho
-                    // para evitar que la aplicación se cierre
-                }
-            }
-            // No hacemos nada para el evento 'up' del botón derecho
+            // Enviamos el evento de mouse al CEF directamente para el botón derecho
+            it->second.browser->GetHost()->SendMouseClickEvent(
+                ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
         }
         else
         {
