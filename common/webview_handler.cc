@@ -830,12 +830,12 @@ void WebviewHandler::OnPaint(CefRefPtr<CefBrowser> browser, CefRenderHandler::Pa
 }
 
 // CefContextMenuHandler methods
-bool WebviewHandler::OnContextMenu(CefRefPtr<CefBrowser> browser,
-                                   CefRefPtr<CefFrame> frame,
-                                   CefRefPtr<CefContextMenuParams> params,
-                                   CefRefPtr<CefMenuModel> model)
+void WebviewHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
+                                         CefRefPtr<CefFrame> frame,
+                                         CefRefPtr<CefContextMenuParams> params,
+                                         CefRefPtr<CefMenuModel> model)
 {
-    // Retornamos true para cancelar el menú contextual nativo de CEF
-    // Esto permitirá que el evento llegue a JavaScript
-    return true;
+    // Limpiar el modelo de menú para que no se muestre el menú contextual
+    // Esto permite que el evento contextmenu llegue a JavaScript
+    model->Clear();
 }

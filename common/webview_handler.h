@@ -146,10 +146,10 @@ public:
     virtual void OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser, const CefRange &selection_range, const CefRenderHandler::RectList &character_bounds) override;
 
     // CefContextMenuHandler method:
-    virtual bool OnContextMenu(CefRefPtr<CefBrowser> browser,
-                               CefRefPtr<CefFrame> frame,
-                               CefRefPtr<CefContextMenuParams> params,
-                               CefRefPtr<CefMenuModel> model) override;
+    virtual void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
+                                     CefRefPtr<CefFrame> frame,
+                                     CefRefPtr<CefContextMenuParams> params,
+                                     CefRefPtr<CefMenuModel> model) override;
 
     // Request that all existing browser windows close.
     void CloseAllBrowsers(bool force_close);
