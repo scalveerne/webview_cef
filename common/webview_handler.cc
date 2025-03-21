@@ -203,7 +203,7 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 {
     // Para otras URLs, comportamiento actual
     loadUrl(browser->GetIdentifier(), target_url);
-    return true;
+    return false;
 }
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
