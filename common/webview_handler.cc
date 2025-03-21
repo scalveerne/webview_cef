@@ -478,9 +478,8 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
 
             if (!up)
             {
-                // Down event (presionar botón derecho)
-                it->second.browser->GetHost()->SendMouseClickEvent(
-                    ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
+                // Para clic derecho NO enviamos eventos de mouse al CEF
+                // Solo inyectamos código JavaScript
 
                 // Si es clic derecho, registramos para depuración
                 std::stringstream js;
@@ -515,12 +514,7 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
                 it->second.browser->GetMainFrame()->ExecuteJavaScript(
                     js.str(), it->second.browser->GetMainFrame()->GetURL(), 0);
             }
-            else
-            {
-                // Up event (soltar botón derecho)
-                it->second.browser->GetHost()->SendMouseClickEvent(
-                    ev, CefBrowserHost::MouseButtonType::MBT_RIGHT, up, 1);
-            }
+            // No hacemos nada para el evento 'up' del botón derecho
         }
         else
         {
