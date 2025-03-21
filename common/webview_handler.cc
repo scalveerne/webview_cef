@@ -203,7 +203,7 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 {
     // Para otras URLs, comportamiento actual
     loadUrl(browser->GetIdentifier(), target_url);
-    return false;
+    return true;
 }
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
@@ -260,7 +260,7 @@ void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                int httpStatusCode)
 {
-    if (onLoadEnd)
+    if (onLoadEnd && frame->IsMain())
     {
         onLoadEnd(browser->GetIdentifier(), frame->GetURL());
     }
