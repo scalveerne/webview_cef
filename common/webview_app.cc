@@ -125,9 +125,11 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         command_line->AppendSwitch("no-sanbox");
         command_line->AppendSwitch("disable-web-security");
 
+        // Add chrome runtime to pass Cloudflare browser integrity checks
+        command_line->AppendSwitch("enable-chrome-runtime");
+
         command_line->AppendSwitchWithValue("enable-features", "NetworkService,NetworkServiceInProcess");
         command_line->AppendSwitch("disable-web-security");
-        command_line->AppendSwitch("enable-chrome-runtime");
 
         // http://www.chromium.org/developers/design-documents/process-models
         if (m_uMode == 1)
@@ -170,10 +172,10 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
                                                 m_strFilterDomain);
         }
 
-        // User Agent moderno
+        // User Agent moderno (reemplazamos el existente con uno de Chrome más reciente)
         command_line->AppendSwitchWithValue("user-agent",
                                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-                                            "Chrome/96.0.4664.110 Safari/537.36");
+                                            "Chrome/120.0.0.0 Safari/537.36");
     }
 
 #ifdef __APPLE__

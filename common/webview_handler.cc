@@ -209,8 +209,27 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
         url_str.find("captcha") != std::string::npos ||
         url_str.find("turnstile") != std::string::npos ||
         url_str.find("recaptcha") != std::string::npos ||
-        url_str.find("hcaptcha") != std::string::npos)
+        url_str.find("hcaptcha") != std::string::npos ||
+        url_str.find("challenge") != std::string::npos ||
+        url_str.find("cf_chl") != std::string::npos ||
+        url_str.find("__cf_chl") != std::string::npos)
     {
+        // Usar el mismo cliente para el popup
+        client = this;
+
+        // No restringir acceso a JavaScript
+        if (no_javascript_access)
+            *no_javascript_access = false;
+
+        // Configurar opciones del navegador para asegurar que Cloudflare funcione
+        settings.javascript = STATE_ENABLED;
+        settings.javascript_close_windows = STATE_ENABLED;
+        settings.javascript_access_clipboard = STATE_ENABLED;
+        settings.local_storage = STATE_ENABLED;
+
+        // Usar windowInfo como está, sin intentar modificar con SetAsPopup/width/height
+        // que no existen en esta implementación
+
         return false; // ¡PERMITIR QUE EL POPUP SE ABRA!
     }
 
@@ -221,6 +240,17 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
 {
+    // Evitar perder el foco cuando Cloudflare está activo
+    std::string url = browser->GetMainFrame()->GetURL().ToString();
+    if (url.find("cloudflare") != std::string::npos ||
+        url.find("challenge") != std::string::npos ||
+        url.find("captcha") != std::string::npos ||
+        url.find("cf_chl") != std::string::npos ||
+        url.find("__cf_chl") != std::string::npos)
+    {
+        return; // No ejecutar blur en elementos de Cloudflare
+    }
+
     executeJavaScript(browser->GetIdentifier(), "document.activeElement.blur()");
 }
 
