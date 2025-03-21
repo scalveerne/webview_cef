@@ -143,7 +143,8 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         {
             command_line->AppendSwitch("single-process"); // all in one process
         }
-        command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required"); // autoplay policy for media
+        command_line->AppendSwitch("enable-webgl");
+        command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
         // Support cross domain requests
         std::string values = command_line->GetSwitchValue("disable-features");

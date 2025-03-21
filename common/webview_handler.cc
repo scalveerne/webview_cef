@@ -201,7 +201,20 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                    CefRefPtr<CefDictionaryValue> &extra_info,
                                    bool *no_javascript_access)
 {
-    // Para otras URLs, comportamiento actual
+    std::string url_str = target_url.ToString();
+
+    // Permitir que Cloudflare y captchas abran popups reales
+    if (url_str.find("cloudflare") != std::string::npos ||
+        url_str.find("cf-challenge") != std::string::npos ||
+        url_str.find("captcha") != std::string::npos ||
+        url_str.find("turnstile") != std::string::npos ||
+        url_str.find("recaptcha") != std::string::npos ||
+        url_str.find("hcaptcha") != std::string::npos)
+    {
+        return false; // ¡PERMITIR QUE EL POPUP SE ABRA!
+    }
+
+    // Para otras URLs, redirigir al frame principal
     loadUrl(browser->GetIdentifier(), target_url);
     return true;
 }
