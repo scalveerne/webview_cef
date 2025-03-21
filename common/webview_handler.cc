@@ -10,6 +10,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <cstdint>
+#include <cmath> // Para std::abs
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -518,18 +519,77 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
         }
         else
         {
-            // Configurar para clic izquierdo (comportamiento original)
+            // Clic izquierdo - Implementar lógica de múltiples clics
             ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
-            if (up && it->second.is_dragging)
+
+            if (!up) // Evento de presionar botón
             {
-                it->second.browser->GetHost()->DragTargetDrop(ev);
-                it->second.browser->GetHost()->DragSourceSystemDragEnded();
-                it->second.is_dragging = false;
+                // Obtener tiempo actual en milisegundos
+                auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::system_clock::now().time_since_epoch())
+                               .count();
+
+                // Verificar si es un clic múltiple (mismo lugar y en tiempo cercano)
+                bool isMultiClick = false;
+                if (now - it->second.last_click_time < browser_info::MULTI_CLICK_TIME)
+                {
+                    // Verificar si el clic está cerca del anterior
+                    int dx = std::abs(x - it->second.last_click_x);
+                    int dy = std::abs(y - it->second.last_click_y);
+
+                    if (dx <= browser_info::MULTI_CLICK_TOLERANCE &&
+                        dy <= browser_info::MULTI_CLICK_TOLERANCE)
+                    {
+                        isMultiClick = true;
+                    }
+                }
+
+                // Actualizar recuento de clics
+                if (isMultiClick)
+                {
+                    it->second.click_count++;
+                    if (it->second.click_count > 3)
+                    {
+                        it->second.click_count = 1; // Reiniciar después de triple clic
+                    }
+                }
+                else
+                {
+                    it->second.click_count = 1; // Nuevo clic simple
+                }
+
+                // Guardar información del clic actual
+                it->second.last_click_x = x;
+                it->second.last_click_y = y;
+                it->second.last_click_time = now;
+
+                if (it->second.is_dragging)
+                {
+                    it->second.browser->GetHost()->DragTargetDrop(ev);
+                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                    it->second.is_dragging = false;
+                }
+                else
+                {
+                    // Enviar evento de clic con el recuento correcto
+                    it->second.browser->GetHost()->SendMouseClickEvent(
+                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                }
             }
-            else
+            else // Evento de soltar botón
             {
-                it->second.browser->GetHost()->SendMouseClickEvent(
-                    ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, 1);
+                if (it->second.is_dragging)
+                {
+                    it->second.browser->GetHost()->DragTargetDrop(ev);
+                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                    it->second.is_dragging = false;
+                }
+                else
+                {
+                    // Enviar evento de soltar con el mismo recuento de clics
+                    it->second.browser->GetHost()->SendMouseClickEvent(
+                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                }
             }
         }
     }

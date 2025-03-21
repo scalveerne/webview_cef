@@ -31,6 +31,14 @@ struct browser_info
     bool is_dragging = false;
     CefRect prev_ime_position = CefRect();
     bool is_ime_commit = false;
+
+    // Variables para múltiples clics
+    int last_click_x = 0;
+    int last_click_y = 0;
+    int click_count = 0;
+    uint64_t last_click_time = 0;
+    static const int MULTI_CLICK_TOLERANCE = 5;   // Tolerancia en píxeles para considerar clics en el mismo lugar
+    static const uint64_t MULTI_CLICK_TIME = 500; // Tiempo máximo entre clics (milisegundos)
 };
 
 class WebviewHandler : public CefClient,
