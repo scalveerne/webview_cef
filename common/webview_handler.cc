@@ -503,7 +503,6 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
                 js << "    if (element) {";
                 js << "      element.dispatchEvent(evt);";
                 js << "      console.log('Evento contextmenu enviado al elemento');";
-                js << "      document.body.dispatchEvent(evt);";
                 js << "    } else {";
                 js << "      document.body.dispatchEvent(evt);";
                 js << "      console.log('Evento contextmenu enviado al body');";
