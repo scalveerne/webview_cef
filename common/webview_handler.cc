@@ -310,40 +310,80 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
             (function() {
                 // Permitir scripts en iframes (especialmente para Cloudflare)
                 try {
-                    const observer = new MutationObserver(function(mutations) {
-                        for (const mutation of mutations) {
-                            if (mutation.addedNodes) {
-                                mutation.addedNodes.forEach(function(node) {
-                                    if (node.tagName === 'IFRAME') {
-                                        // Permitir varios permisos importantes para Cloudflare
-                                        if (node.src && (
-                                            node.src.includes('cloudflare') ||
-                                            node.src.includes('captcha') ||
-                                            node.src.includes('challenge') ||
-                                            node.src.includes('security-check') ||
-                                            node.src.includes('__cf_')
-                                        )) {
-                                            console.log('Configurando permisos para iframe de Cloudflare');
-                                            node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-modals');
-                                        }
+                    // Función para ayudar con los desafíos de Cloudflare
+                    window.__cfHelperFunction = function() {
+                        try {
+                            // Detectar iframes de Cloudflare
+                            const observer = new MutationObserver(function(mutations) {
+                                for (const mutation of mutations) {
+                                    if (mutation.addedNodes) {
+                                        mutation.addedNodes.forEach(function(node) {
+                                            if (node.tagName === 'IFRAME') {
+                                                try {
+                                                    // Permitir permisos para iframes de Cloudflare
+                                                    if (node.src && (
+                                                        node.src.includes('cloudflare') ||
+                                                        node.src.includes('captcha') ||
+                                                        node.src.includes('challenge') ||
+                                                        node.src.includes('turnstile') ||
+                                                        node.src.includes('cf-') ||
+                                                        node.src.includes('__cf')
+                                                    )) {
+                                                        console.log('Configurando iframe de Cloudflare:', node.src);
+                                                        node.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts');
+                                                    }
+                                                } catch(e) {
+                                                    console.error('Error configurando iframe:', e);
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                            
+                            observer.observe(document.documentElement, {
+                                childList: true,
+                                subtree: true
+                            });
+
+                            // Funciones de ayuda para Cloudflare
+                            if (window.navigator && typeof navigator.userAgent === 'string' && navigator.userAgent.toLowerCase().includes('headless')) {
+                                const originalUserAgent = navigator.userAgent;
+                                Object.defineProperty(navigator, 'userAgent', {
+                                    get: function() {
+                                        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36";
                                     }
                                 });
                             }
-                        }
-                    });
-                    
-                    observer.observe(document.documentElement, {
-                        childList: true,
-                        subtree: true
-                    });
-                    
-                    // Intentar mejorar compatibilidad con fingerprinting
-                    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Headless')) {
-                        Object.defineProperty(navigator, 'userAgent', {
-                            get: function() {
-                                return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
+
+                            // Intentar prevenir detección de webdriver
+                            if (navigator.webdriver === true) {
+                                Object.defineProperty(navigator, 'webdriver', {
+                                    get: () => false
+                                });
                             }
-                        });
+
+                            // Prevenir detección de navegador automatizado
+                            if (typeof navigator.plugins !== 'undefined') {
+                                if (navigator.plugins.length === 0) {
+                                    Object.defineProperty(navigator, 'plugins', {
+                                        get: () => [1, 2, 3, 4, 5]
+                                    });
+                                }
+                            }
+                        } catch(e) {
+                            console.error('Error en helper de Cloudflare:', e);
+                        }
+                    };
+
+                    // Ejecutar inmediatamente
+                    window.__cfHelperFunction();
+
+                    // Ejecutar también cuando la página esté completamente cargada
+                    if (document.readyState === 'complete') {
+                        window.__cfHelperFunction();
+                    } else {
+                        window.addEventListener('load', window.__cfHelperFunction);
                     }
                 } catch(e) {
                     console.error('Error en soporte de Cloudflare:', e);
@@ -445,9 +485,9 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
         }
     }
 
-    // Configurar un User-Agent personalizado que imita a Safari
-    // Esto mejora la compatibilidad con Cloudflare
-    CefString user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+    // Configurar un User-Agent personalizado compatible con Cloudflare
+    // Usar una versión de Chrome similar a la de CEF que estamos usando (101)
+    CefString user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36";
 
     // Crear diccionario para extra_info
     CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
@@ -1187,43 +1227,4 @@ bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
 
     // Devolvemos true para indicar que hemos manejado el menú contextual
     return true;
-}
-
-// Configurar cabeceras personalizadas para mejorar la compatibilidad con Cloudflare
-bool WebviewHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser,
-                                          CefRefPtr<CefFrame> frame,
-                                          CefRefPtr<CefRequest> request,
-                                          CefRefPtr<CefRequestCallback> callback)
-{
-    // Verificar si estamos accediendo a Cloudflare
-    std::string url = request->GetURL().ToString();
-    if (url.find("cloudflare") != std::string::npos ||
-        url.find("challenge") != std::string::npos ||
-        url.find("captcha") != std::string::npos ||
-        url.find("cf-") != std::string::npos ||
-        url.find("turnstile") != std::string::npos)
-    {
-        // Obtener encabezados existentes
-        CefRefPtr<CefRequestImpl> requestImpl = static_cast<CefRefPtr<CefRequestImpl>>(request);
-        CefRequest::HeaderMap headers;
-        request->GetHeaderMap(headers);
-
-        // Establecer User-Agent de Safari
-        headers.erase("User-Agent");
-        headers.insert(std::make_pair("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"));
-
-        // Añadir cabeceras que ayudan con la compatibilidad de Cloudflare
-        headers.insert(std::make_pair("Sec-Fetch-Dest", "document"));
-        headers.insert(std::make_pair("Sec-Fetch-Mode", "navigate"));
-        headers.insert(std::make_pair("Sec-Fetch-Site", "none"));
-        headers.insert(std::make_pair("Sec-Fetch-User", "?1"));
-        headers.insert(std::make_pair("Sec-CH-UA", "\"Chromium\";v=\"115\", \"Not-A.Brand\";v=\"24\""));
-        headers.insert(std::make_pair("Sec-CH-UA-Mobile", "?0"));
-        headers.insert(std::make_pair("Sec-CH-UA-Platform", "\"macOS\""));
-
-        // Actualizar encabezados
-        request->SetHeaderMap(headers);
-    }
-
-    return false;
 }

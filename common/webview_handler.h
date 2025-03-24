@@ -64,8 +64,7 @@ class WebviewHandler : public CefClient,
                        public CefFocusHandler,
                        public CefLoadHandler,
                        public CefRenderHandler,
-                       public CefContextMenuHandler,
-                       public CefResourceRequestHandler
+                       public CefContextMenuHandler
 {
 public:
     // Paint callback
@@ -102,7 +101,6 @@ public:
     virtual CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
     virtual CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
     virtual CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
-    virtual CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler() override { return this; }
 
     bool OnProcessMessageReceived(
         CefRefPtr<CefBrowser> browser,
@@ -216,12 +214,6 @@ public:
     void setJavaScriptChannels(int browserId, const std::vector<std::string> channels);
     void sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId);
     void executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback = nullptr);
-
-    // CefResourceRequestHandler methods
-    bool OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser,
-                              CefRefPtr<CefFrame> frame,
-                              CefRefPtr<CefRequest> request,
-                              CefRefPtr<CefRequestCallback> callback) override;
 
 private:
     // List of existing browser windows. Only accessed on the CEF UI thread.
