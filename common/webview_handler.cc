@@ -204,14 +204,24 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 {
     std::string url_str = target_url.ToString();
 
-    // Permitir que Cloudflare y captchas abran popups reales
+    // Mejorar detección de sitios de Cloudflare y permitir popups
     if (url_str.find("cloudflare") != std::string::npos ||
         url_str.find("cf-challenge") != std::string::npos ||
         url_str.find("captcha") != std::string::npos ||
         url_str.find("turnstile") != std::string::npos ||
         url_str.find("recaptcha") != std::string::npos ||
-        url_str.find("hcaptcha") != std::string::npos)
+        url_str.find("hcaptcha") != std::string::npos ||
+        url_str.find("challenge-platform") != std::string::npos ||
+        url_str.find("security-check") != std::string::npos ||
+        url_str.find("__cf_chl") != std::string::npos)
     {
+        // Permitir javascript en el popup
+        if (no_javascript_access)
+        {
+            *no_javascript_access = false;
+        }
+
+        // Conservar todas las características del popup para Cloudflare
         return false; // ¡PERMITIR QUE EL POPUP SE ABRA!
     }
 
@@ -295,7 +305,54 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
             })();
         )";
 
+        // Mejorar soporte para iframes de Cloudflare
+        std::string cloudflareSupport = R"(
+            (function() {
+                // Permitir scripts en iframes (especialmente para Cloudflare)
+                try {
+                    const observer = new MutationObserver(function(mutations) {
+                        for (const mutation of mutations) {
+                            if (mutation.addedNodes) {
+                                mutation.addedNodes.forEach(function(node) {
+                                    if (node.tagName === 'IFRAME') {
+                                        // Permitir varios permisos importantes para Cloudflare
+                                        if (node.src && (
+                                            node.src.includes('cloudflare') ||
+                                            node.src.includes('captcha') ||
+                                            node.src.includes('challenge') ||
+                                            node.src.includes('security-check') ||
+                                            node.src.includes('__cf_')
+                                        )) {
+                                            console.log('Configurando permisos para iframe de Cloudflare');
+                                            node.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-modals');
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    });
+                    
+                    observer.observe(document.documentElement, {
+                        childList: true,
+                        subtree: true
+                    });
+                    
+                    // Intentar mejorar compatibilidad con fingerprinting
+                    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Headless')) {
+                        Object.defineProperty(navigator, 'userAgent', {
+                            get: function() {
+                                return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
+                            }
+                        });
+                    }
+                } catch(e) {
+                    console.error('Error en soporte de Cloudflare:', e);
+                }
+            })();
+        )";
+
         frame->ExecuteJavaScript(script, frame->GetURL(), 0);
+        frame->ExecuteJavaScript(cloudflareSupport, frame->GetURL(), 0);
 
         if (onLoadEnd)
         {
@@ -388,13 +445,21 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
         }
     }
 
+    // Configurar un User-Agent personalizado que imita a Safari
+    // Esto mejora la compatibilidad con Cloudflare
+    CefString user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
+
+    // Crear diccionario para extra_info
+    CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
+    extra_info->SetString("user-agent", user_agent);
+
     // Crear el navegador con el contexto específico del perfil
     callback(CefBrowserHost::CreateBrowserSync(
                  window_info,
                  this,
                  url,
                  browser_settings,
-                 nullptr,
+                 extra_info,
                  context)
                  ->GetIdentifier());
 }
@@ -442,8 +507,9 @@ void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, in
 #ifndef __APPLE__
         // The scrolling direction on Windows and Linux is different from MacOS
         deltaY = -deltaY;
-        // Flutter scrolls too slowly, it looks more normal by 10x default speed.
-        it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX * 10, deltaY * 10);
+        // Flutter scrolls too slowly, usar un multiplicador más conservador
+        // Reducir de 10x a 3x para que el comportamiento sea más natural y menos detectable
+        it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX * 3, deltaY * 3);
 #else
         it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX, deltaY);
 #endif
@@ -657,6 +723,20 @@ void WebviewHandler::cursorMove(int browserId, int x, int y, bool dragging)
         {
             ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
         }
+
+        // Generar un evento intermedio de inicio de desplazamiento para evitar errores de is_in_gesture_scroll_
+        // Solo en caso de desplazamiento
+        static bool last_dragging_state = false;
+        if (dragging && !last_dragging_state)
+        {
+            // Iniciar el estado de desplazamiento con un evento de rueda simulado
+            CefMouseEvent scroll_ev;
+            scroll_ev.x = x;
+            scroll_ev.y = y;
+            it->second.browser->GetHost()->SendMouseWheelEvent(scroll_ev, 0, 0);
+        }
+        last_dragging_state = dragging;
+
         if (it->second.is_dragging && dragging)
         {
             it->second.browser->GetHost()->DragTargetDragOver(ev, DRAG_OPERATION_EVERY);
@@ -1107,4 +1187,43 @@ bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
 
     // Devolvemos true para indicar que hemos manejado el menú contextual
     return true;
+}
+
+// Configurar cabeceras personalizadas para mejorar la compatibilidad con Cloudflare
+bool WebviewHandler::OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser,
+                                          CefRefPtr<CefFrame> frame,
+                                          CefRefPtr<CefRequest> request,
+                                          CefRefPtr<CefRequestCallback> callback)
+{
+    // Verificar si estamos accediendo a Cloudflare
+    std::string url = request->GetURL().ToString();
+    if (url.find("cloudflare") != std::string::npos ||
+        url.find("challenge") != std::string::npos ||
+        url.find("captcha") != std::string::npos ||
+        url.find("cf-") != std::string::npos ||
+        url.find("turnstile") != std::string::npos)
+    {
+        // Obtener encabezados existentes
+        CefRefPtr<CefRequestImpl> requestImpl = static_cast<CefRefPtr<CefRequestImpl>>(request);
+        CefRequest::HeaderMap headers;
+        request->GetHeaderMap(headers);
+
+        // Establecer User-Agent de Safari
+        headers.erase("User-Agent");
+        headers.insert(std::make_pair("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"));
+
+        // Añadir cabeceras que ayudan con la compatibilidad de Cloudflare
+        headers.insert(std::make_pair("Sec-Fetch-Dest", "document"));
+        headers.insert(std::make_pair("Sec-Fetch-Mode", "navigate"));
+        headers.insert(std::make_pair("Sec-Fetch-Site", "none"));
+        headers.insert(std::make_pair("Sec-Fetch-User", "?1"));
+        headers.insert(std::make_pair("Sec-CH-UA", "\"Chromium\";v=\"115\", \"Not-A.Brand\";v=\"24\""));
+        headers.insert(std::make_pair("Sec-CH-UA-Mobile", "?0"));
+        headers.insert(std::make_pair("Sec-CH-UA-Platform", "\"macOS\""));
+
+        // Actualizar encabezados
+        request->SetHeaderMap(headers);
+    }
+
+    return false;
 }
