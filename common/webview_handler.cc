@@ -67,8 +67,8 @@ bool WebviewHandler::OnProcessMessageReceived(
     CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
     CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
 {
-    std::string message_name = message->GetName().ToString();
-    if (message_name == kFocusedNodeChangedMessage.ToString())
+    CefString message_name = message->GetName();
+    if (message_name == kFocusedNodeChangedMessage)
     {
         current_focused_browser_ = browser;
         bool editable = message->GetArgumentList()->GetBool(0);
@@ -78,7 +78,7 @@ bool WebviewHandler::OnProcessMessageReceived(
             onImeCompositionRangeChangedMessage(browser->GetIdentifier(), message->GetArgumentList()->GetInt(1), message->GetArgumentList()->GetInt(2));
         }
     }
-    else if (message_name == kJSCallCppFunctionMessage.ToString())
+    else if (message_name == kJSCallCppFunctionMessage)
     {
         CefString fun_name = message->GetArgumentList()->GetString(0);
         CefString param = message->GetArgumentList()->GetString(1);
@@ -92,7 +92,7 @@ bool WebviewHandler::OnProcessMessageReceived(
         onJavaScriptChannelMessage(
             fun_name, param, stringpatch::to_string(js_callback_id), browser->GetIdentifier(), stringpatch::to_string(frame->GetIdentifier()));
     }
-    else if (message_name == kEvaluateCallbackMessage.ToString())
+    else if (message_name == kEvaluateCallbackMessage)
     {
         CefString callbackId = message->GetArgumentList()->GetString(0);
         CefRefPtr<CefValue> param = message->GetArgumentList()->GetValue(1);
@@ -1060,7 +1060,7 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
         CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
 
 #if defined(OS_WIN) || defined(OS_MAC)
-        bool identifierMatch = frame->GetIdentifier() == static_cast<int64>(frameIdInt);
+        bool identifierMatch = frame->GetIdentifier() == static_cast<int64_t>(frameIdInt);
 #else
         bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
