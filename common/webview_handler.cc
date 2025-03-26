@@ -450,7 +450,10 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
     }
 #endif
     CefBrowserSettings browser_settings;
+    
+    browser_settings.javascript = STATE_ENABLED;
     browser_settings.windowless_frame_rate = 30;
+    
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
