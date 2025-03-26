@@ -67,8 +67,8 @@ bool WebviewHandler::OnProcessMessageReceived(
     CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
     CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
 {
-    std::string message_name = message->GetName();
-    if (message_name == kFocusedNodeChangedMessage)
+    std::string message_name = message->GetName().ToString();
+    if (message_name == kFocusedNodeChangedMessage.ToString())
     {
         current_focused_browser_ = browser;
         bool editable = message->GetArgumentList()->GetBool(0);
@@ -78,7 +78,7 @@ bool WebviewHandler::OnProcessMessageReceived(
             onImeCompositionRangeChangedMessage(browser->GetIdentifier(), message->GetArgumentList()->GetInt(1), message->GetArgumentList()->GetInt(2));
         }
     }
-    else if (message_name == kJSCallCppFunctionMessage)
+    else if (message_name == kJSCallCppFunctionMessage.ToString())
     {
         CefString fun_name = message->GetArgumentList()->GetString(0);
         CefString param = message->GetArgumentList()->GetString(1);
@@ -92,7 +92,7 @@ bool WebviewHandler::OnProcessMessageReceived(
         onJavaScriptChannelMessage(
             fun_name, param, stringpatch::to_string(js_callback_id), browser->GetIdentifier(), stringpatch::to_string(frame->GetIdentifier()));
     }
-    else if (message_name == kEvaluateCallbackMessage)
+    else if (message_name == kEvaluateCallbackMessage.ToString())
     {
         CefString callbackId = message->GetArgumentList()->GetString(0);
         CefRefPtr<CefValue> param = message->GetArgumentList()->GetValue(1);
@@ -832,8 +832,15 @@ void WebviewHandler::OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser,
         if (it->second.is_ime_commit)
         {
             auto lastCharacter = character_bounds.back();
-            it->second.prev_ime_position = lastCharacter;
-            onImeCompositionRangeChangedMessage(browser->GetIdentifier(), lastCharacter.x + lastCharacter.width, lastCharacter.y + lastCharacter.height);
+            bool positionChanged = (lastCharacter.x != it->second.prev_ime_position.x) ||
+                                   (lastCharacter.y != it->second.prev_ime_position.y);
+            if (positionChanged)
+            {
+                it->second.prev_ime_position = lastCharacter;
+                onImeCompositionRangeChangedMessage(browser->GetIdentifier(),
+                                                    lastCharacter.x + lastCharacter.width,
+                                                    lastCharacter.y + lastCharacter.height);
+            }
             it->second.is_ime_commit = false;
         }
         else
@@ -1050,15 +1057,12 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
     if (bit != browser_map_.end())
     {
         int64_t frameIdInt = atoll(frameId.c_str());
-
         CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
 
-        // Return types for frame->GetIdentifier() changed, use the Linux way when updating MacOS or Windows
-        // versions in download.cmake
-#if __linux__
-        bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
+#if defined(OS_WIN) || defined(OS_MAC)
+        bool identifierMatch = frame->GetIdentifier() == static_cast<int64>(frameIdInt);
 #else
-        bool identifierMatch = frame->GetIdentifier() == frameIdInt;
+        bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
         if (identifierMatch)
         {
