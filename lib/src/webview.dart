@@ -447,11 +447,15 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
           },
           onPointerSignal: (signal) {
             if (signal is PointerScrollEvent) {
+              _controller._setScrollDelta(signal.localPosition, 0, 0);
+
               _controller._setScrollDelta(signal.localPosition,
                   signal.scrollDelta.dx.round(), signal.scrollDelta.dy.round());
             }
           },
           onPointerPanZoomUpdate: (event) {
+            _controller._setScrollDelta(event.localPosition, 0, 0);
+
             _controller._setScrollDelta(event.localPosition,
                 event.panDelta.dx.round(), event.panDelta.dy.round());
           },

@@ -544,6 +544,17 @@ void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, in
         ev.x = x;
         ev.y = y;
 
+        // Iniciar siempre el estado de desplazamiento con un evento de rueda de valor cero
+        // Esto asegura que se inicialice correctamente el estado is_in_gesture_scroll_
+        static bool gesture_initialized = false;
+
+        if (!gesture_initialized)
+        {
+            // Enviar un evento inicial con delta cero para inicializar el estado de gesto
+            it->second.browser->GetHost()->SendMouseWheelEvent(ev, 0, 0);
+            gesture_initialized = true;
+        }
+
 #ifndef __APPLE__
         // The scrolling direction on Windows and Linux is different from MacOS
         deltaY = -deltaY;
