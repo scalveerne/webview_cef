@@ -1060,7 +1060,7 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
         CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
 
 #if defined(OS_WIN) || defined(OS_MAC)
-        bool identifierMatch = frame->GetIdentifier() == static_cast<int64_t>(frameIdInt);
+        bool identifierMatch = frame->GetIdentifier().ToString() == std::to_string(frameIdInt);
 #else
         bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
