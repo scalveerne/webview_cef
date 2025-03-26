@@ -451,8 +451,7 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 #endif
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
-    browser_settings.multi_threaded_message_loop = true;
-    browser_settings.windowless_rendering_enabled = true;
+
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
