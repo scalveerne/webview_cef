@@ -486,13 +486,9 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
         }
     }
 
-    // Configurar un User-Agent personalizado compatible con Cloudflare
-    // Usar una versión de Chrome similar a la de CEF que estamos usando (101)
-    CefString user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36";
-
     // Crear diccionario para extra_info
     CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
-    extra_info->SetString("user-agent", user_agent);
+    //extra_info->SetString("user-agent", user_agent);
 
     // Crear el navegador con el contexto específico del perfil
     callback(CefBrowserHost::CreateBrowserSync(

@@ -4,6 +4,15 @@
 # customers of the plugin.
 cmake_minimum_required(VERSION 3.14)
 
+# IMPORTANTE: Configuración de iteradores ANTES de incluir otros archivos o definir targets
+if(MSVC)
+  # Configuración global para todo el proyecto
+  add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0 _HAS_ITERATOR_DEBUGGING=0)
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0 /D_HAS_ITERATOR_DEBUGGING=0")
+  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0 /D_HAS_ITERATOR_DEBUGGING=0")
+endif()
+
+
 # Project-level configuration.
 set(PROJECT_NAME "webview_cef")
 project(${PROJECT_NAME} LANGUAGES CXX)
