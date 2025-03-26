@@ -68,7 +68,7 @@ bool WebviewHandler::OnProcessMessageReceived(
     CefProcessId source_process, CefRefPtr<CefProcessMessage> message)
 {
     CefString message_name = message->GetName();
-    if (message_name == kFocusedNodeChangedMessage)
+    if (message_name.ToString() == kFocusedNodeChangedMessage)
     {
         current_focused_browser_ = browser;
         bool editable = message->GetArgumentList()->GetBool(0);
@@ -78,7 +78,7 @@ bool WebviewHandler::OnProcessMessageReceived(
             onImeCompositionRangeChangedMessage(browser->GetIdentifier(), message->GetArgumentList()->GetInt(1), message->GetArgumentList()->GetInt(2));
         }
     }
-    else if (message_name == kJSCallCppFunctionMessage)
+    else if (message_name.ToString() == kJSCallCppFunctionMessage)
     {
         CefString fun_name = message->GetArgumentList()->GetString(0);
         CefString param = message->GetArgumentList()->GetString(1);
@@ -92,7 +92,7 @@ bool WebviewHandler::OnProcessMessageReceived(
         onJavaScriptChannelMessage(
             fun_name, param, stringpatch::to_string(js_callback_id), browser->GetIdentifier(), stringpatch::to_string(frame->GetIdentifier()));
     }
-    else if (message_name == kEvaluateCallbackMessage)
+    else if (message_name.ToString() == kEvaluateCallbackMessage)
     {
         CefString callbackId = message->GetArgumentList()->GetString(0);
         CefRefPtr<CefValue> param = message->GetArgumentList()->GetValue(1);
