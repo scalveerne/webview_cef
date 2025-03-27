@@ -1161,8 +1161,8 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
             // usan el frame principal para la interacción
             frame->SendProcessMessage(PID_RENDERER, message);
 
-            // Opcional: Si necesitas depurar todos los frames disponibles
-            std::vector<int64> frameIds;
+            // Mostrar información para depuración
+            std::vector<int64_t> frameIds; // Cambio de int64 a int64_t
             bit->second.browser->GetFrameIdentifiers(frameIds);
             std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
             for (auto id : frameIds)
