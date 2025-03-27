@@ -1161,13 +1161,13 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
             // usan el frame principal para la interacción
             frame->SendProcessMessage(PID_RENDERER, message);
 
-            // Mostrar información para depuración
-            std::vector<int64_t> frameIds; // Cambio de int64 a int64_t
+            // Mostrar información para depuración - USANDO TIPO CORRECTO
+            std::vector<CefString> frameIds; // Cambio: ahora usamos CefString en lugar de int64_t
             bit->second.browser->GetFrameIdentifiers(frameIds);
             std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
-            for (auto id : frameIds)
+            for (auto &id : frameIds)
             {
-                std::cout << "  ID: " << id << std::endl;
+                std::cout << "  ID: " << id.ToString() << std::endl;
             }
         }
     }
