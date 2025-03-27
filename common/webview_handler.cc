@@ -576,9 +576,9 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
         std::cerr << "ERROR creando directorio: " << cachePath << " - " << e.what() << std::endl;
 
         // Intentar con una ubicación alternativa
-        char tempPath[MAX_PATH];
-        GetTempPathA(MAX_PATH, tempPath);
-        cachePath = std::string(tempPath) + "ScalBrowser_fallback\\" + safeProfileId;
+        char tempPath2[MAX_PATH]; // Usar un nombre diferente aquí (tempPath2 en lugar de tempPath)
+        GetTempPathA(MAX_PATH, tempPath2);
+        cachePath = std::string(tempPath2) + "ScalBrowser_fallback\\" + safeProfileId;
 
         std::cout << "Intentando ubicación alternativa: " << cachePath << std::endl;
 
@@ -598,7 +598,6 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
 
     // Más configuraciones de perfil para mejorar estabilidad
     settings.persist_session_cookies = 1;
-    settings.persist_user_preferences = 1;
 
     // Crear y almacenar el contexto
     std::cout << "Creando contexto de CEF con ruta: " << cachePath << std::endl;
