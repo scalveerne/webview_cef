@@ -211,6 +211,23 @@ bool WebviewHandler::DoClose(CefRefPtr<CefBrowser> browser)
 void WebviewHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)
 {
     CEF_REQUIRE_UI_THREAD();
+
+    // Asegurarse de que el navegador no esté en modo pausado
+    browser->GetHost()->WasHidden(false);
+
+    // Eliminar todas las referencias a este navegador
+    auto it = browser_map_.find(browser->GetIdentifier());
+    if (it != browser_map_.end())
+    {
+        it->second.browser = nullptr;
+        browser_map_.erase(it);
+    }
+
+    // Si este es el último navegador, notificar que todos están cerrados
+    if (browser_map_.empty())
+    {
+        std::cout << "Todos los navegadores han sido cerrados" << std::endl;
+    }
 }
 
 bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
@@ -438,12 +455,26 @@ void WebviewHandler::CloseAllBrowsers(bool force_close)
         return;
     }
 
+    // Crear una copia de los navegadores para evitar problemas al iterar y eliminar
+    std::vector<CefRefPtr<CefBrowser>> browsers_to_close;
+
     for (auto &it : browser_map_)
     {
-        it.second.browser->GetHost()->CloseBrowser(force_close);
-        it.second.browser = nullptr;
+        if (it.second.browser != nullptr)
+        {
+            // Asegurarse de que no esté pausado
+            it.second.browser->GetHost()->WasHidden(false);
+            browsers_to_close.push_back(it.second.browser);
+        }
     }
-    browser_map_.clear();
+
+    // Ahora cerrar todos los navegadores
+    for (auto &browser : browsers_to_close)
+    {
+        browser->GetHost()->CloseBrowser(force_close);
+    }
+
+    // No limpiar browser_map_ aquí - lo haremos en OnBeforeClose
 }
 
 // static
@@ -464,9 +495,13 @@ void WebviewHandler::closeBrowser(int browserId)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
+        // Asegurarse de que el navegador NO esté en modo pausado antes de cerrarlo
+        it->second.browser->GetHost()->WasHidden(false);
+
+        // Ahora cerrarlo normalmente
         it->second.browser->GetHost()->CloseBrowser(true);
-        it->second.browser = nullptr;
-        browser_map_.erase(it);
+
+        // La eliminación del mapa la hacemos en OnBeforeClose
     }
 }
 
@@ -1363,10 +1398,12 @@ void WebviewHandler::pauseBrowser(int browserId, bool pause)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end() && it->second.browser.get())
     {
-        // Esto notifica a CEF que debe reducir los recursos
-        it->second.browser->GetHost()->WasHidden(pause);
-
-        // Ajusta la velocidad de fotogramas
-        it->second.browser->GetHost()->SetWindowlessFrameRate(pause ? 1 : 30);
+        // Asegurarse de que el navegador esté todavía válido
+        if (it->second.browser->GetHost())
+        {
+            // Pausar sólo si el navegador no está siendo cerrado
+            it->second.browser->GetHost()->WasHidden(pause);
+            it->second.browser->GetHost()->SetWindowlessFrameRate(pause ? 1 : 30);
+        }
     }
 }
