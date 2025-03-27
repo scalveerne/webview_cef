@@ -13,6 +13,12 @@
 #include <cmath>      // Para std::abs
 #include <filesystem> // C++17
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shlobj.h>                 // Para SHGetFolderPath
+#pragma comment(lib, "shell32.lib") // Enlazar con shell32.lib para SHGetFolderPath
+#endif
+
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
 #include "include/cef_parser.h"
@@ -510,26 +516,62 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     std::string cachePath;
 
 #ifdef _WIN32
-    // 1. Usar directorio de la aplicación
-    char appPath[MAX_PATH];
-    GetModuleFileNameA(NULL, appPath, MAX_PATH);
-    std::string exePath(appPath);
-    size_t lastSlash = exePath.find_last_of("\\/");
-    cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
+    // Usar el directorio de AppData para almacenar los perfiles
+    char userProfile[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile)))
+    {
+        // Crear una ruta en AppData usando un nombre de app específico
+        cachePath = std::string(userProfile) + "\\ScalBrowser\\cache\\";
 
-    // 2. O usar directorio de usuario
-    // char userProfile[MAX_PATH];
-    // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
-    // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
+        // Sanitizar nombre de perfil
+        std::string sanitizedProfileId = profileId;
+        std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '/', '_');
+        std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '\\', '_');
+        std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), ':', '_');
 
-    // Sanitizar nombre de perfil
-    std::string sanitizedProfileId = profileId;
-    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '/', '_');
-    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '\\', '_');
-    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), ':', '_');
+        // Añadir el ID del perfil sanitizado
+        cachePath += sanitizedProfileId;
+    }
+    else
+    {
+        // Fallback si falla SHGetFolderPathA - usar directorio temporal
+        char tempPath[MAX_PATH];
+        GetTempPathA(MAX_PATH, tempPath);
+        cachePath = std::string(tempPath) + "ScalBrowser\\cache\\" + profileId;
+    }
 #else
-    cachePath = "/var/cache/tuapp/" + profileId; // Linux
-                                                 // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
+// En Linux o Mac usar ubicaciones estándar
+#ifdef __APPLE__
+    // Para Mac
+    char *homeDir = getenv("HOME");
+    if (homeDir)
+    {
+        cachePath = std::string(homeDir) + "/Library/Caches/ScalBrowser/" + profileId;
+    }
+    else
+    {
+        cachePath = "/tmp/ScalBrowser/" + profileId;
+    }
+#else
+    // Para Linux
+    char *xdgCache = getenv("XDG_CACHE_HOME");
+    if (xdgCache)
+    {
+        cachePath = std::string(xdgCache) + "/ScalBrowser/" + profileId;
+    }
+    else
+    {
+        char *homeDir = getenv("HOME");
+        if (homeDir)
+        {
+            cachePath = std::string(homeDir) + "/.cache/ScalBrowser/" + profileId;
+        }
+        else
+        {
+            cachePath = "/var/tmp/ScalBrowser/" + profileId;
+        }
+    }
+#endif
 #endif
 
     createCacheDirectory(cachePath);
