@@ -98,6 +98,16 @@ bool WebviewHandler::OnProcessMessageReceived(
         CefString param = message->GetArgumentList()->GetString(1);
         int js_callback_id = message->GetArgumentList()->GetInt(2);
 
+        std::cout << "JS→C++ Channel llamado: " << fun_name.ToString()
+                  << ", CallbackID: " << js_callback_id
+                  << ", Frame: " << frame->GetIdentifier().ToString()
+                  << ", BrowserID: " << browser->GetIdentifier() << std::endl;
+
+        if (fun_name.ToString() == "GetCredentials")
+        {
+            std::cout << "GetCredentials llamado con param: " << param.ToString() << std::endl;
+        }
+
         if (fun_name.empty() || !(browser.get()))
         {
             return false;
@@ -1110,6 +1120,13 @@ void WebviewHandler::setJavaScriptChannels(int browserId, const std::vector<std:
 
 void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId)
 {
+    std::cout << "C++→JS Enviando respuesta: callbackId=" << callbackId
+              << ", browserId=" << browserId
+              << ", frameId=" << frameId
+              << ", error=" << (error ? "true" : "false")
+              << ", resultado=" << (result.length() > 100 ? result.substr(0, 100) + "..." : result)
+              << std::endl;
+
     CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create(kExecuteJsCallbackMessage);
     CefRefPtr<CefListValue> args = message->GetArgumentList();
     args->SetInt(0, atoi(callbackId.c_str()));
@@ -1126,10 +1143,35 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
 #else
         bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
+        std::cout << "Comparando frameIds: "
+                  << "JS frameId=" << frameIdInt
+                  << ", MainFrame ID=" << frame->GetIdentifier().ToString()
+                  << ", Match=" << (identifierMatch ? "SÍ" : "NO") << std::endl;
+
         if (identifierMatch)
         {
+            std::cout << "✅ Enviando mensaje al frame" << std::endl;
             frame->SendProcessMessage(PID_RENDERER, message);
         }
+        else
+        {
+            std::cout << "❌ El frameId no coincide con el main frame, buscando frame..." << std::endl;
+            CefRefPtr<CefFrame> targetFrame = bit->second.browser->GetFrame(CefString(frameId));
+            if (targetFrame)
+            {
+                std::cout << "✅ Frame encontrado, enviando mensaje" << std::endl;
+                targetFrame->SendProcessMessage(PID_RENDERER, message);
+            }
+            else
+            {
+                std::cout << "❌ Frame no encontrado. Intentando enviar al main frame de todos modos" << std::endl;
+                frame->SendProcessMessage(PID_RENDERER, message);
+            }
+        }
+    }
+    else
+    {
+        std::cout << "❌ Browser ID no encontrado: " << browserId << std::endl;
     }
 }
 
