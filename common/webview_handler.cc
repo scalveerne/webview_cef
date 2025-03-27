@@ -601,9 +601,35 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
             // Crear un nuevo contexto para este perfil
             CefRequestContextSettings settings;
 
-            // Configurar rutas específicas para el perfil
-            std::string cachePath = "/cache/" + profileId;
-            CefString(&settings.cache_path) = cachePath;
+// CORRECCIÓN: Usar una ruta absoluta para el caché
+#if defined(OS_WIN)
+            // En Windows, usamos la carpeta temporal del sistema
+            TCHAR tempPath[MAX_PATH];
+            GetTempPath(MAX_PATH, tempPath);
+            std::string basePath = CefString(tempPath).ToString();
+            std::string cachePath = basePath + "\\CEFCache\\" + profileId;
+#elif defined(OS_MAC)
+            // En macOS, usamos la carpeta Application Support del usuario
+            NSArray *paths = NSSearchPathForDirectoriesInDomains(
+                NSApplicationSupportDirectory, NSUserDomainMask, YES);
+            NSString *appSupportDir = [paths firstObject];
+            std::string basePath = [appSupportDir UTF8String];
+            std::string cachePath = basePath + "/CEFCache/" + profileId;
+#else
+            // En Linux u otros sistemas
+            std::string cachePath = "/tmp/CEFCache/" + profileId;
+#endif
+
+            // Asegurar que el directorio existe
+            if (!CefCreateDirectory(cachePath))
+            {
+                // Si no podemos crear el directorio, usar almacenamiento en memoria
+                CefString(&settings.cache_path) = "";
+            }
+            else
+            {
+                CefString(&settings.cache_path) = cachePath;
+            }
 
             // Crear y almacenar el contexto
             context = CefRequestContext::CreateContext(settings, nullptr);
@@ -632,7 +658,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // Si no hay ID de perfil, usar el contexto global
     if (profileId.empty())
     {
-        return CefRequestContext::GetGlobalContext();
+        return CefRequestContext::GetGlobalManager(nullptr);
     }
 
     // Buscar si ya existe un contexto para este perfil
@@ -645,11 +671,37 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // Crear un nuevo contexto para este perfil
     CefRequestContextSettings settings;
 
-    // Configurar rutas específicas para el perfil
-    std::string cachePath = "/cache/" + profileId;
-    CefString(&settings.cache_path) = cachePath;
+// CORRECCIÓN: Usar una ruta absoluta para el caché
+#if defined(OS_WIN)
+    // En Windows, usamos la carpeta temporal del sistema
+    TCHAR tempPath[MAX_PATH];
+    GetTempPath(MAX_PATH, tempPath);
+    std::string basePath = CefString(tempPath).ToString();
+    std::string cachePath = basePath + "\\CEFCache\\" + profileId;
+#elif defined(OS_MAC)
+    // En macOS, usamos la carpeta Application Support del usuario
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(
+        NSApplicationSupportDirectory, NSUserDomainMask, YES);
+    NSString *appSupportDir = [paths firstObject];
+    std::string basePath = [appSupportDir UTF8String];
+    std::string cachePath = basePath + "/CEFCache/" + profileId;
+#else
+    // En Linux u otros sistemas
+    std::string cachePath = "/tmp/CEFCache/" + profileId;
+#endif
 
-    // Crear y almacenar el contexto sin un manejador personalizado
+    // Asegurar que el directorio existe
+    if (!CefCreateDirectory(cachePath))
+    {
+        // Si no podemos crear el directorio, usar almacenamiento en memoria
+        CefString(&settings.cache_path) = "";
+    }
+    else
+    {
+        CefString(&settings.cache_path) = cachePath;
+    }
+
+    // Crear y almacenar el contexto
     CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
     profile_contexts_[profileId] = context;
 
