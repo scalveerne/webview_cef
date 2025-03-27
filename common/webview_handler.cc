@@ -524,28 +524,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     CefRequestContextSettings settings;
 
     // Configurar rutas específicas para el perfil
-    std::string cachePath;
-
 #ifdef _WIN32
-    // Obtener directorio de la aplicación en lugar de AppData
-    char appPath[MAX_PATH];
-    GetModuleFileNameA(NULL, appPath, MAX_PATH);
-    std::string exePath(appPath);
-    size_t lastSlash = exePath.find_last_of("\\/");
-
-    // Crear una ruta que sea estable y con permisos garantizados
-    char tempPath[MAX_PATH];
-    if (GetTempPathA(MAX_PATH, tempPath))
-    {
-        // Usar TEMP que siempre tiene permisos
-        cachePath = std::string(tempPath) + "ScalBrowser\\profiles";
-    }
-    else
-    {
-        // Fallback al directorio de la app
-        cachePath = exePath.substr(0, lastSlash) + "\\Cache";
-    }
-
     // Usar directamente el ID del perfil (limitado a 20 caracteres por seguridad)
     std::string safeProfileId = profileId;
     if (safeProfileId.length() > 20)
@@ -564,43 +543,28 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     std::replace(safeProfileId.begin(), safeProfileId.end(), '>', '_');
     std::replace(safeProfileId.begin(), safeProfileId.end(), '|', '_');
 
-    cachePath += "\\" + safeProfileId;
-
-    std::cout << "Intentando crear caché en: " << cachePath << std::endl;
+    // En lugar de construir una ruta absoluta completa,
+    // solo proporciona la ruta relativa al root_cache_path
+    std::string cachePath = "profiles\\" + safeProfileId;
+    std::cout << "Usando ruta de caché relativa: " << cachePath << std::endl;
 #else
-    // Código para Linux/Mac similar...
+    // Código similar para Linux/Mac
+    std::string cachePath = "profiles/" + safeProfileId;
 #endif
 
-    // Intentar crear el directorio con mejor manejo de errores
-    bool directoryCreated = false;
-    try
-    {
+    // ¡IMPORTANTE! Ya no necesitas crear el directorio manualmente
+    // porque CEF lo hará basándose en root_cache_path
+    // ELIMINAR/COMENTAR estas líneas:
+    /*
+    try {
         directoryCreated = fs::create_directories(cachePath);
         std::cout << "Directorio creado exitosamente: " << (directoryCreated ? "SÍ" : "NO (ya existía)") << std::endl;
+    } catch (...) {
+        ...
     }
-    catch (const std::exception &e)
-    {
-        std::cerr << "ERROR creando directorio: " << cachePath << " - " << e.what() << std::endl;
+    */
 
-        // Intentar con una ubicación alternativa
-        char tempPath2[MAX_PATH]; // Usar un nombre diferente aquí (tempPath2 en lugar de tempPath)
-        GetTempPathA(MAX_PATH, tempPath2);
-        cachePath = std::string(tempPath2) + "ScalBrowser_fallback\\" + safeProfileId;
-
-        std::cout << "Intentando ubicación alternativa: " << cachePath << std::endl;
-
-        try
-        {
-            directoryCreated = fs::create_directories(cachePath);
-            std::cout << "Directorio alternativo creado: " << (directoryCreated ? "SÍ" : "NO") << std::endl;
-        }
-        catch (...)
-        {
-            std::cerr << "ERROR FATAL: No se pudo crear ningún directorio para el perfil" << std::endl;
-            return CefRequestContext::GetGlobalContext(); // Fallar de forma segura usando el contexto global
-        }
-    }
-
+    // Solo asigna la ruta relativa a settings.cache_path
     CefString(&settings.cache_path) = cachePath;
 
     // Más configuraciones de perfil para mejorar estabilidad
