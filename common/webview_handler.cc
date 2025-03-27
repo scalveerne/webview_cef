@@ -20,14 +20,6 @@
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
 
-#ifdef OS_WIN
-#include <windows.h>
-#elif defined(OS_MAC)
-#include <stdlib.h>
-#else
-#include <stdlib.h>
-#endif
-
 #include <sstream>
 
 // std::to_string fails for ints on Ubuntu 24.04:
@@ -318,133 +310,8 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
             (function() {
                 // Permitir scripts en iframes (especialmente para Cloudflare)
                 try {
-                    // MEJORA 1: Funciones avanzadas para evadir detección
-                    const evadeCloudflareDection = function() {
-                        // Emular características de navegadores reales
-                        const originalHasProperty = Object.prototype.hasOwnProperty;
-                        
-                        // Emular Chrome correctamente
-                        window.chrome = {
-                            app: {
-                                isInstalled: false,
-                                InstallState: {
-                                    DISABLED: 'disabled',
-                                    INSTALLED: 'installed',
-                                    NOT_INSTALLED: 'not_installed'
-                                },
-                                RunningState: {
-                                    CANNOT_RUN: 'cannot_run',
-                                    READY_TO_RUN: 'ready_to_run',
-                                    RUNNING: 'running'
-                                }
-                            },
-                            runtime: {
-                                OnInstalledReason: {
-                                    CHROME_UPDATE: 'chrome_update',
-                                    INSTALL: 'install',
-                                    SHARED_MODULE_UPDATE: 'shared_module_update',
-                                    UPDATE: 'update'
-                                },
-                                OnRestartRequiredReason: {
-                                    APP_UPDATE: 'app_update',
-                                    OS_UPDATE: 'os_update',
-                                    PERIODIC: 'periodic'
-                                },
-                                PlatformArch: {
-                                    ARM: 'arm',
-                                    ARM64: 'arm64',
-                                    MIPS: 'mips',
-                                    MIPS64: 'mips64',
-                                    X86_32: 'x86-32',
-                                    X86_64: 'x86-64'
-                                },
-                                PlatformNaclArch: {
-                                    ARM: 'arm',
-                                    MIPS: 'mips',
-                                    MIPS64: 'mips64',
-                                    X86_32: 'x86-32',
-                                    X86_64: 'x86-64'
-                                },
-                                PlatformOs: {
-                                    ANDROID: 'android',
-                                    CROS: 'cros',
-                                    LINUX: 'linux',
-                                    MAC: 'mac',
-                                    OPENBSD: 'openbsd',
-                                    WIN: 'win'
-                                },
-                                RequestUpdateCheckStatus: {
-                                    NO_UPDATE: 'no_update',
-                                    THROTTLED: 'throttled',
-                                    UPDATE_AVAILABLE: 'update_available'
-                                }
-                            }
-                        };
-                        
-                        // Modificar navegador para evitar detección de automatización
-                        if (navigator) {
-                            const newProto = navigator.__proto__;
-                            delete navigator.__proto__;
-                            
-                            const navigatorProxy = new Proxy(navigator, {
-                                has: function(target, key) {
-                                    if (key === 'webdriver') return false;
-                                    return key in target;
-                                },
-                                get: function(target, key) {
-                                    if (key === 'webdriver') return false;
-                                    if (key === 'plugins') {
-                                        return [
-                                            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
-                                            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: 'Portable Document Format' },
-                                            { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
-                                        ];
-                                    }
-                                    if (key === 'languages') return ['es-ES', 'es', 'en-US', 'en'];
-                                    if (key === 'userAgent') return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-                                    
-                                    return target[key];
-                                }
-                            });
-                            
-                            // Reemplazar el navegador global
-                            navigator.__proto__ = newProto;
-                            for (let prop in navigatorProxy) {
-                                if (typeof navigatorProxy[prop] !== 'function') {
-                                    try {
-                                        Object.defineProperty(navigator, prop, {
-                                            get: () => navigatorProxy[prop]
-                                        });
-                                    } catch(e) {}
-                                }
-                            }
-                        }
-                        
-                        // MEJORA 2: Emular correctamente hardware WebGL para Turnstile
-                        const getParameterProxyHandler = {
-                            apply: function(target, thisArg, args) {
-                                const param = args[0];
-                                
-                                // WebGL fingerprinting evasion
-                                if (param === 37445) return 'Intel Inc.';
-                                if (param === 37446) return 'Intel Iris Pro Graphics';
-                                
-                                return target.apply(thisArg, args);
-                            }
-                        };
-                        
-                        // Parchear función getParameter para WebGL
-                        if (window.WebGLRenderingContext) {
-                            const getParameter = WebGLRenderingContext.prototype.getParameter;
-                            WebGLRenderingContext.prototype.getParameter = new Proxy(getParameter, getParameterProxyHandler);
-                        }
-                    };
-                    
-                    // Ejecutar evasiones inmediatamente
-                    evadeCloudflareDection();
-                    
-                    // MEJORA 3: Mejorada la configuración de iframes para Turnstile
-                    const handleCloudflareIframes = function() {
+                    // Función para ayudar con los desafíos de Cloudflare
+                    window.__cfHelperFunction = function() {
                         try {
                             // Detectar iframes de Cloudflare
                             const observer = new MutationObserver(function(mutations) {
@@ -463,40 +330,7 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
                                                         node.src.includes('__cf')
                                                     )) {
                                                         console.log('Configurando iframe de Cloudflare:', node.src);
-                                                        
-                                                        // Configuración ampliada de sandbox para Turnstile
-                                                        node.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation');
-                                                        
-                                                        // Asegurarse de que se cargue completamente
-                                                        node.setAttribute('loading', 'eager');
-                                                        
-                                                        // MEJORA 4: Auto-click en checkbox de Turnstile después de cargar
-                                                        node.addEventListener('load', function() {
-                                                            try {
-                                                                setTimeout(function() {
-                                                                    try {
-                                                                        // Intentar hacer click en el checkbox de Turnstile dentro del iframe
-                                                                        const iframeDoc = node.contentDocument || node.contentWindow.document;
-                                                                        const checkboxes = iframeDoc.querySelectorAll('.cf-turnstile input[type="checkbox"], iframe[src*="turnstile"] input[type="checkbox"]');
-                                                                        
-                                                                        if (checkboxes.length > 0) {
-                                                                            checkboxes.forEach(checkbox => {
-                                                                                if (!checkbox.checked) {
-                                                                                    checkbox.click();
-                                                                                    console.log('Auto-click en checkbox de Turnstile realizado');
-                                                                                }
-                                                                            });
-                                                                        } else {
-                                                                            console.log('No se encontró checkbox de Turnstile para auto-click');
-                                                                        }
-                                                                    } catch(e) {
-                                                                        console.error('Error en auto-click de Turnstile:', e);
-                                                                    }
-                                                                }, 1500);
-                                                            } catch(e) {
-                                                                console.error('Error en evento load de iframe:', e);
-                                                            }
-                                                        });
+                                                        node.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts');
                                                     }
                                                 } catch(e) {
                                                     console.error('Error configurando iframe:', e);
@@ -511,12 +345,46 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
                                 childList: true,
                                 subtree: true
                             });
+
+                            // Funciones de ayuda para Cloudflare
+                            if (window.navigator && typeof navigator.userAgent === 'string' && navigator.userAgent.toLowerCase().includes('headless')) {
+                                const originalUserAgent = navigator.userAgent;
+                                Object.defineProperty(navigator, 'userAgent', {
+                                    get: function() {
+                                        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36";
+                                    }
+                                });
+                            }
+
+                            // Intentar prevenir detección de webdriver
+                            if (navigator.webdriver === true) {
+                                Object.defineProperty(navigator, 'webdriver', {
+                                    get: () => false
+                                });
+                            }
+
+                            // Prevenir detección de navegador automatizado
+                            if (typeof navigator.plugins !== 'undefined') {
+                                if (navigator.plugins.length === 0) {
+                                    Object.defineProperty(navigator, 'plugins', {
+                                        get: () => [1, 2, 3, 4, 5]
+                                    });
+                                }
+                            }
                         } catch(e) {
-                            console.error('Error en manipulación de iframes:', e);
+                            console.error('Error en helper de Cloudflare:', e);
                         }
                     };
-                    
-                    handleCloudflareIframes();
+
+                    // Ejecutar inmediatamente
+                    window.__cfHelperFunction();
+
+                    // Ejecutar también cuando la página esté completamente cargada
+                    if (document.readyState === 'complete') {
+                        window.__cfHelperFunction();
+                    } else {
+                        window.addEventListener('load', window.__cfHelperFunction);
+                    }
                 } catch(e) {
                     console.error('Error en soporte de Cloudflare:', e);
                 }
@@ -588,8 +456,70 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
-    // CORRECCIÓN: Usar el método actualizado para obtener el contexto
-    CefRefPtr<CefRequestContext> context = GetRequestContextForProfile(profileId);
+    // Obtener o crear el contexto de solicitud para este perfil
+    CefRefPtr<CefRequestContext> context;
+
+    // Si no hay ID de perfil, usar el contexto global
+    if (profileId.empty())
+    {
+        context = CefRequestContext::GetGlobalContext();
+    }
+    else
+    {
+        // Buscar si ya existe un contexto para este perfil
+        auto it = profile_contexts_.find(profileId);
+        if (it != profile_contexts_.end())
+        {
+            context = it->second;
+        }
+        else
+        {
+            // Crear un nuevo contexto para este perfil
+            CefRequestContextSettings settings;
+
+            // Configurar rutas específicas para el perfil
+            std::string cachePath;
+
+#ifdef _WIN32
+            // 1. Usar directorio de la aplicación
+            char appPath[MAX_PATH];
+            GetModuleFileNameA(NULL, appPath, MAX_PATH);
+            std::string exePath(appPath);
+            size_t lastSlash = exePath.find_last_of("\\/");
+            cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
+
+            // 2. O usar directorio de usuario
+            // char userProfile[MAX_PATH];
+            // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
+            // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
+
+            // Sanitizar nombre de perfil
+            std::replace(profileId.begin(), profileId.end(), '/', '_');
+            std::replace(profileId.begin(), profileId.end(), '\\', '_');
+            std::replace(profileId.begin(), profileId.end(), ':', '_');
+#else
+            cachePath = "/var/cache/tuapp/" + profileId; // Linux
+                                                         // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
+#endif
+
+// Crear directorio recursivamente
+#ifdef _WIN32
+            // Crear estructura de carpetas completa
+            std::string command = "mkdir \"" + cachePath + "\" 2>nul";
+            system(command.c_str());
+#else
+            // Usar -p para crear padres
+            std::string command = "mkdir -p \"" + cachePath + "\"";
+            system(command.c_str());
+#endif
+
+            CefString(&settings.cache_path) = cachePath;
+
+            // Crear y almacenar el contexto
+            context = CefRequestContext::CreateContext(settings, nullptr);
+            profile_contexts_[profileId] = context;
+        }
+    }
 
     // Crear diccionario para extra_info
     CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
@@ -609,103 +539,61 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 // Método para obtener o crear un contexto de solicitud para un perfil específico
 CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const std::string &profileId)
 {
-    // Si ya tienes el contexto, úsalo
+    // Si no hay ID de perfil, usar el contexto global
+    if (profileId.empty())
+    {
+        return CefRequestContext::GetGlobalContext();
+    }
+
+    // Buscar si ya existe un contexto para este perfil
     auto it = profile_contexts_.find(profileId);
     if (it != profile_contexts_.end())
     {
         return it->second;
     }
 
-    // Crear un nuevo contexto
+    // Crear un nuevo contexto para este perfil
     CefRequestContextSettings settings;
 
-#if defined(OS_WIN)
-    // Obtener ruta de AppData (persistente entre reinicios)
-    char appDataPath[MAX_PATH] = {0};
+    // Configurar rutas específicas para el perfil
+    std::string cachePath;
 
-    // Intentar obtener %LOCALAPPDATA%
-    const char *localAppData = getenv("LOCALAPPDATA");
-    if (localAppData)
-    {
-        strcpy(appDataPath, localAppData);
-    }
-    else
-    {
-        // Alternativa: %USERPROFILE%\AppData\Local
-        const char *userProfile = getenv("USERPROFILE");
-        if (userProfile)
-        {
-            strcpy(appDataPath, userProfile);
-            strcat(appDataPath, "\\AppData\\Local");
-        }
-        else
-        {
-            // Última opción: C:\ProgramData
-            strcpy(appDataPath, "C:\\ProgramData");
-        }
-    }
+#ifdef _WIN32
+    // 1. Usar directorio de la aplicación
+    char appPath[MAX_PATH];
+    GetModuleFileNameA(NULL, appPath, MAX_PATH);
+    std::string exePath(appPath);
+    size_t lastSlash = exePath.find_last_of("\\/");
+    cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
 
-    // Construir ruta de caché
-    std::string cachePath = std::string(appDataPath) + "\\ScalboostBrowser\\Cache\\" + profileId;
+    // 2. O usar directorio de usuario
+    // char userProfile[MAX_PATH];
+    // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
+    // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
 
-    // Crear directorios necesarios
-    std::string baseDir = std::string(appDataPath) + "\\ScalboostBrowser\\Cache";
-    std::string mkdirCmd = "mkdir \"" + baseDir + "\" 2>nul";
-    system(mkdirCmd.c_str());
-
-    mkdirCmd = "mkdir \"" + cachePath + "\" 2>nul";
-    system(mkdirCmd.c_str());
-
-#elif defined(OS_MAC)
-    // Obtener ruta de Application Support (persistente entre reinicios)
-    std::string homePath = "";
-    const char *homeEnv = getenv("HOME");
-    if (homeEnv)
-    {
-        homePath = homeEnv;
-    }
-    else
-    {
-        homePath = "/Users/Shared"; // Alternativa si no hay HOME
-    }
-
-    std::string cachePath = homePath + "/Library/Application Support/ScalboostBrowser/Cache/" + profileId;
-
-    // Crear directorios necesarios
-    std::string mkdirCmd = "mkdir -p '" + cachePath + "'";
-    system(mkdirCmd.c_str());
-
+    // Sanitizar nombre de perfil
+    std::replace(profileId.begin(), profileId.end(), '/', '_');
+    std::replace(profileId.begin(), profileId.end(), '\\', '_');
+    std::replace(profileId.begin(), profileId.end(), ':', '_');
 #else
-    // En Linux, usar ~/.config (persistente entre reinicios)
-    std::string homePath = "";
-    const char *homeEnv = getenv("HOME");
-    if (homeEnv)
-    {
-        homePath = homeEnv;
-    }
-    else
-    {
-        homePath = "/var/lib"; // Alternativa si no hay HOME
-    }
-
-    std::string cachePath = homePath + "/.config/ScalboostBrowser/Cache/" + profileId;
-
-    // Crear directorios necesarios
-    std::string mkdirCmd = "mkdir -p '" + cachePath + "'";
-    system(mkdirCmd.c_str());
+    cachePath = "/var/cache/tuapp/" + profileId; // Linux
+    // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
 #endif
 
-    // Asignar la ruta absoluta persistente
+// Crear directorio recursivamente
+#ifdef _WIN32
+    // Crear estructura de carpetas completa
+    std::string command = "mkdir \"" + cachePath + "\" 2>nul";
+    system(command.c_str());
+#else
+    // Usar -p para crear padres
+    std::string command = "mkdir -p \"" + cachePath + "\"";
+    system(command.c_str());
+#endif
+
     CefString(&settings.cache_path) = cachePath;
 
-    // Resto de tu código para crear el contexto
-
-    // Configuraciones adicionales para CEF 130
-    settings.persist_session_cookies = true;
-    settings.persist_user_preferences = true;
-    settings.accept_language_list = "es-ES,es,en-US,en";
-
-    // Crear y almacenar el contexto
+    // Crear y almacenar el contexto sin un manejador personalizado
     CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
     profile_contexts_[profileId] = context;
 
