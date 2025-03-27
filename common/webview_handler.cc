@@ -310,8 +310,133 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
             (function() {
                 // Permitir scripts en iframes (especialmente para Cloudflare)
                 try {
-                    // Función para ayudar con los desafíos de Cloudflare
-                    window.__cfHelperFunction = function() {
+                    // MEJORA 1: Funciones avanzadas para evadir detección
+                    const evadeCloudflareDection = function() {
+                        // Emular características de navegadores reales
+                        const originalHasProperty = Object.prototype.hasOwnProperty;
+                        
+                        // Emular Chrome correctamente
+                        window.chrome = {
+                            app: {
+                                isInstalled: false,
+                                InstallState: {
+                                    DISABLED: 'disabled',
+                                    INSTALLED: 'installed',
+                                    NOT_INSTALLED: 'not_installed'
+                                },
+                                RunningState: {
+                                    CANNOT_RUN: 'cannot_run',
+                                    READY_TO_RUN: 'ready_to_run',
+                                    RUNNING: 'running'
+                                }
+                            },
+                            runtime: {
+                                OnInstalledReason: {
+                                    CHROME_UPDATE: 'chrome_update',
+                                    INSTALL: 'install',
+                                    SHARED_MODULE_UPDATE: 'shared_module_update',
+                                    UPDATE: 'update'
+                                },
+                                OnRestartRequiredReason: {
+                                    APP_UPDATE: 'app_update',
+                                    OS_UPDATE: 'os_update',
+                                    PERIODIC: 'periodic'
+                                },
+                                PlatformArch: {
+                                    ARM: 'arm',
+                                    ARM64: 'arm64',
+                                    MIPS: 'mips',
+                                    MIPS64: 'mips64',
+                                    X86_32: 'x86-32',
+                                    X86_64: 'x86-64'
+                                },
+                                PlatformNaclArch: {
+                                    ARM: 'arm',
+                                    MIPS: 'mips',
+                                    MIPS64: 'mips64',
+                                    X86_32: 'x86-32',
+                                    X86_64: 'x86-64'
+                                },
+                                PlatformOs: {
+                                    ANDROID: 'android',
+                                    CROS: 'cros',
+                                    LINUX: 'linux',
+                                    MAC: 'mac',
+                                    OPENBSD: 'openbsd',
+                                    WIN: 'win'
+                                },
+                                RequestUpdateCheckStatus: {
+                                    NO_UPDATE: 'no_update',
+                                    THROTTLED: 'throttled',
+                                    UPDATE_AVAILABLE: 'update_available'
+                                }
+                            }
+                        };
+                        
+                        // Modificar navegador para evitar detección de automatización
+                        if (navigator) {
+                            const newProto = navigator.__proto__;
+                            delete navigator.__proto__;
+                            
+                            const navigatorProxy = new Proxy(navigator, {
+                                has: function(target, key) {
+                                    if (key === 'webdriver') return false;
+                                    return key in target;
+                                },
+                                get: function(target, key) {
+                                    if (key === 'webdriver') return false;
+                                    if (key === 'plugins') {
+                                        return [
+                                            { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+                                            { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: 'Portable Document Format' },
+                                            { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
+                                        ];
+                                    }
+                                    if (key === 'languages') return ['es-ES', 'es', 'en-US', 'en'];
+                                    if (key === 'userAgent') return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+                                    
+                                    return target[key];
+                                }
+                            });
+                            
+                            // Reemplazar el navegador global
+                            navigator.__proto__ = newProto;
+                            for (let prop in navigatorProxy) {
+                                if (typeof navigatorProxy[prop] !== 'function') {
+                                    try {
+                                        Object.defineProperty(navigator, prop, {
+                                            get: () => navigatorProxy[prop]
+                                        });
+                                    } catch(e) {}
+                                }
+                            }
+                        }
+                        
+                        // MEJORA 2: Emular correctamente hardware WebGL para Turnstile
+                        const getParameterProxyHandler = {
+                            apply: function(target, thisArg, args) {
+                                const param = args[0];
+                                
+                                // WebGL fingerprinting evasion
+                                if (param === 37445) return 'Intel Inc.';
+                                if (param === 37446) return 'Intel Iris Pro Graphics';
+                                
+                                return target.apply(thisArg, args);
+                            }
+                        };
+                        
+                        // Parchear función getParameter para WebGL
+                        if (window.WebGLRenderingContext) {
+                            const getParameter = WebGLRenderingContext.prototype.getParameter;
+                            WebGLRenderingContext.prototype.getParameter = new Proxy(getParameter, getParameterProxyHandler);
+                        }
+                    };
+                    
+                    // Ejecutar evasiones inmediatamente
+                    evadeCloudflareDection();
+                    
+                    // MEJORA 3: Mejorada la configuración de iframes para Turnstile
+                    const handleCloudflareIframes = function() {
                         try {
                             // Detectar iframes de Cloudflare
                             const observer = new MutationObserver(function(mutations) {
@@ -330,7 +455,40 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
                                                         node.src.includes('__cf')
                                                     )) {
                                                         console.log('Configurando iframe de Cloudflare:', node.src);
-                                                        node.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts');
+                                                        
+                                                        // Configuración ampliada de sandbox para Turnstile
+                                                        node.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation');
+                                                        
+                                                        // Asegurarse de que se cargue completamente
+                                                        node.setAttribute('loading', 'eager');
+                                                        
+                                                        // MEJORA 4: Auto-click en checkbox de Turnstile después de cargar
+                                                        node.addEventListener('load', function() {
+                                                            try {
+                                                                setTimeout(function() {
+                                                                    try {
+                                                                        // Intentar hacer click en el checkbox de Turnstile dentro del iframe
+                                                                        const iframeDoc = node.contentDocument || node.contentWindow.document;
+                                                                        const checkboxes = iframeDoc.querySelectorAll('.cf-turnstile input[type="checkbox"], iframe[src*="turnstile"] input[type="checkbox"]');
+                                                                        
+                                                                        if (checkboxes.length > 0) {
+                                                                            checkboxes.forEach(checkbox => {
+                                                                                if (!checkbox.checked) {
+                                                                                    checkbox.click();
+                                                                                    console.log('Auto-click en checkbox de Turnstile realizado');
+                                                                                }
+                                                                            });
+                                                                        } else {
+                                                                            console.log('No se encontró checkbox de Turnstile para auto-click');
+                                                                        }
+                                                                    } catch(e) {
+                                                                        console.error('Error en auto-click de Turnstile:', e);
+                                                                    }
+                                                                }, 1500);
+                                                            } catch(e) {
+                                                                console.error('Error en evento load de iframe:', e);
+                                                            }
+                                                        });
                                                     }
                                                 } catch(e) {
                                                     console.error('Error configurando iframe:', e);
@@ -345,46 +503,12 @@ void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame
                                 childList: true,
                                 subtree: true
                             });
-
-                            // Funciones de ayuda para Cloudflare
-                            if (window.navigator && typeof navigator.userAgent === 'string' && navigator.userAgent.toLowerCase().includes('headless')) {
-                                const originalUserAgent = navigator.userAgent;
-                                Object.defineProperty(navigator, 'userAgent', {
-                                    get: function() {
-                                        return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.67 Safari/537.36";
-                                    }
-                                });
-                            }
-
-                            // Intentar prevenir detección de webdriver
-                            if (navigator.webdriver === true) {
-                                Object.defineProperty(navigator, 'webdriver', {
-                                    get: () => false
-                                });
-                            }
-
-                            // Prevenir detección de navegador automatizado
-                            if (typeof navigator.plugins !== 'undefined') {
-                                if (navigator.plugins.length === 0) {
-                                    Object.defineProperty(navigator, 'plugins', {
-                                        get: () => [1, 2, 3, 4, 5]
-                                    });
-                                }
-                            }
                         } catch(e) {
-                            console.error('Error en helper de Cloudflare:', e);
+                            console.error('Error en manipulación de iframes:', e);
                         }
                     };
-
-                    // Ejecutar inmediatamente
-                    window.__cfHelperFunction();
-
-                    // Ejecutar también cuando la página esté completamente cargada
-                    if (document.readyState === 'complete') {
-                        window.__cfHelperFunction();
-                    } else {
-                        window.addEventListener('load', window.__cfHelperFunction);
-                    }
+                    
+                    handleCloudflareIframes();
                 } catch(e) {
                     console.error('Error en soporte de Cloudflare:', e);
                 }

@@ -123,7 +123,6 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         // Don't create a "GPUCache" directory when cache-path is unspecified.
         command_line->AppendSwitch("disable-gpu-shader-disk-cache"); // disable gpu shader disk cache
         command_line->AppendSwitch("no-sanbox");
-        command_line->AppendSwitch("disable-web-security");
 
         command_line->AppendSwitchWithValue("enable-features", "NetworkService,NetworkServiceInProcess");
         command_line->AppendSwitch("enable-chrome-runtime");
@@ -169,6 +168,11 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
             command_line->AppendSwitchWithValue("unsafely-treat-insecure-origin-as-secure",
                                                 m_strFilterDomain);
         }
+
+        // MEJORA 6: Configuraciones adicionales para Cloudflare
+        command_line->AppendSwitch("disable-features=IsolateOrigins,site-per-process");
+        command_line->AppendSwitchWithValue("disable-site-isolation-trials", "true");
+        command_line->AppendSwitchWithValue("disable-site-isolation-for-policy", "true");
     }
 
 #ifdef __APPLE__
