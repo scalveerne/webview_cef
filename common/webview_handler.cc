@@ -539,14 +539,10 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
         cachePath = exePath.substr(0, lastSlash) + "\\Cache";
     }
 
-    // Usar directamente el ID del perfil (limitado a 20 caracteres por seguridad)
+    // Usar directamente el ID del perfil sin truncar
     std::string safeProfileId = profileId;
-    if (safeProfileId.length() > 20)
-    {
-        safeProfileId = safeProfileId.substr(0, 20);
-    }
 
-    // Reemplazar caracteres problemáticos
+    // Reemplazar caracteres problemáticos pero mantener la longitud completa
     std::replace(safeProfileId.begin(), safeProfileId.end(), '/', '_');
     std::replace(safeProfileId.begin(), safeProfileId.end(), '\\', '_');
     std::replace(safeProfileId.begin(), safeProfileId.end(), ':', '_');
