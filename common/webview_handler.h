@@ -215,6 +215,8 @@ public:
     void sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId);
     void executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback = nullptr);
 
+    void pauseBrowser(int browserId, bool pause);
+
 private:
     // List of existing browser windows. Only accessed on the CEF UI thread.
     std::unordered_map<int, browser_info> browser_map_;
