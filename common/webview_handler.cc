@@ -10,7 +10,8 @@
 #include <chrono>
 #include <unordered_map>
 #include <cstdint>
-#include <cmath> // Para std::abs
+#include <cmath>      // Para std::abs
+#include <filesystem> // C++17
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -440,6 +441,18 @@ void WebviewHandler::closeBrowser(int browserId)
     }
 }
 
+void createCacheDirectory(const std::string &cachePath)
+{
+    try
+    {
+        std::filesystem::create_directories(cachePath);
+    }
+    catch (const std::filesystem::filesystem_error &e)
+    {
+        std::cerr << "Error creating cache directory: " << e.what() << std::endl;
+    }
+}
+
 void WebviewHandler::createBrowser(std::string url, std::string profileId, std::function<void(int)> callback)
 {
 #ifndef OS_MAC
@@ -502,16 +515,7 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
                                                          // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
 #endif
 
-// Crear directorio recursivamente
-#ifdef _WIN32
-            // Crear estructura de carpetas completa
-            std::string command = "mkdir \"" + cachePath + "\" 2>nul";
-            system(command.c_str());
-#else
-            // Usar -p para crear padres
-            std::string command = "mkdir -p \"" + cachePath + "\"";
-            system(command.c_str());
-#endif
+            createCacheDirectory(cachePath);
 
             CefString(&settings.cache_path) = cachePath;
 
@@ -580,16 +584,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
 #endif
 
-// Crear directorio recursivamente
-#ifdef _WIN32
-    // Crear estructura de carpetas completa
-    std::string command = "mkdir \"" + cachePath + "\" 2>nul";
-    system(command.c_str());
-#else
-    // Usar -p para crear padres
-    std::string command = "mkdir -p \"" + cachePath + "\"";
-    system(command.c_str());
-#endif
+    createCacheDirectory(cachePath);
 
     CefString(&settings.cache_path) = cachePath;
 
