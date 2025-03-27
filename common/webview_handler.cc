@@ -10,8 +10,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <cstdint>
-#include <cmath>      // Para std::abs
-#include <filesystem> // C++17
+#include <cmath> // Para std::abs
 
 #ifdef _WIN32
 #include <windows.h>
@@ -28,6 +27,14 @@
 #include "include/wrapper/cef_helpers.h"
 
 #include <sstream>
+
+#if defined(_MSC_VER) && _MSC_VER >= 1900 && _MSC_VER < 1914
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#include <filesystem>
+namespace fs = std::filesystem;
+#endif
 
 // std::to_string fails for ints on Ubuntu 24.04:
 // webview_handler.cc:86:86: error: no matching function for call to 'to_string'
@@ -451,9 +458,9 @@ void createCacheDirectory(const std::string &cachePath)
 {
     try
     {
-        std::filesystem::create_directories(cachePath);
+        fs::create_directories(cachePath);
     }
-    catch (const std::filesystem::filesystem_error &e)
+    catch (const fs::filesystem_error &e)
     {
         std::cerr << "Error creating cache directory: " << e.what() << std::endl;
     }
@@ -568,7 +575,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     bool directoryCreated = false;
     try
     {
-        directoryCreated = std::filesystem::create_directories(cachePath);
+        directoryCreated = fs::create_directories(cachePath);
         std::cout << "Directorio creado exitosamente: " << (directoryCreated ? "SÍ" : "NO (ya existía)") << std::endl;
     }
     catch (const std::exception &e)
@@ -584,7 +591,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
 
         try
         {
-            directoryCreated = std::filesystem::create_directories(cachePath);
+            directoryCreated = fs::create_directories(cachePath);
             std::cout << "Directorio alternativo creado: " << (directoryCreated ? "SÍ" : "NO") << std::endl;
         }
         catch (...)
