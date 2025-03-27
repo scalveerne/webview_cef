@@ -543,28 +543,39 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     std::replace(safeProfileId.begin(), safeProfileId.end(), '>', '_');
     std::replace(safeProfileId.begin(), safeProfileId.end(), '|', '_');
 
-    // En lugar de construir una ruta absoluta completa,
-    // solo proporciona la ruta relativa al root_cache_path
-    std::string cachePath = "profiles\\" + safeProfileId;
-    std::cout << "Usando ruta de caché relativa: " << cachePath << std::endl;
+    // Construir una ruta absoluta completa
+    char tempPath[MAX_PATH];
+    GetTempPathA(MAX_PATH, tempPath);
+    std::string uniqueAppId = "ScalBrowser_1234"; // Usar el mismo ID que en startCEF
+    std::string cachePath = std::string(tempPath) + uniqueAppId + "\\profiles\\" + safeProfileId;
+
+    std::cout << "Usando ruta de caché absoluta: " << cachePath << std::endl;
 #else
     // Código similar para Linux/Mac
-    std::string cachePath = "profiles/" + safeProfileId;
+    char *homeDir = getenv("HOME");
+    std::string cachePath;
+    if (homeDir)
+    {
+        cachePath = std::string(homeDir) + "/.cache/ScalBrowser_1234/profiles/" + safeProfileId;
+    }
+    else
+    {
+        cachePath = "/tmp/ScalBrowser_1234/profiles/" + safeProfileId;
+    }
 #endif
 
-    // ¡IMPORTANTE! Ya no necesitas crear el directorio manualmente
-    // porque CEF lo hará basándose en root_cache_path
-    // ELIMINAR/COMENTAR estas líneas:
-    /*
-    try {
-        directoryCreated = fs::create_directories(cachePath);
-        std::cout << "Directorio creado exitosamente: " << (directoryCreated ? "SÍ" : "NO (ya existía)") << std::endl;
-    } catch (...) {
-        ...
+    // Asegurarnos de que el directorio exista
+    try
+    {
+        bool directoryCreated = fs::create_directories(cachePath);
+        std::cout << "Directorio creado: " << (directoryCreated ? "SÍ" : "NO (ya existía)") << std::endl;
     }
-    */
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error al crear directorio: " << e.what() << std::endl;
+    }
 
-    // Solo asigna la ruta relativa a settings.cache_path
+    // Asignar la ruta absoluta a settings.cache_path
     CefString(&settings.cache_path) = cachePath;
 
     // Más configuraciones de perfil para mejorar estabilidad
