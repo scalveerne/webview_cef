@@ -609,88 +609,56 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 // Método para obtener o crear un contexto de solicitud para un perfil específico
 CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const std::string &profileId)
 {
-    // Si no hay ID de perfil, usar el contexto global
-    if (profileId.empty())
-    {
-        return CefRequestContext::GetGlobalContext();
-    }
-
-    // Buscar si ya existe un contexto para este perfil
+    // Si ya tienes el contexto, úsalo
     auto it = profile_contexts_.find(profileId);
     if (it != profile_contexts_.end())
     {
         return it->second;
     }
 
-    // Crear un nuevo contexto para este perfil
+    // Crear un nuevo contexto
     CefRequestContextSettings settings;
 
-// CORRECCIÓN: Implementación correcta para CEF 130
 #if defined(OS_WIN)
-    // En Windows, usar una estructura de carpetas compatible con CEF 130
-    wchar_t appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, appDataPath)))
+    // Obtener ruta de AppData (persistente entre reinicios)
+    char appDataPath[MAX_PATH] = {0};
+
+    // Intentar obtener %LOCALAPPDATA%
+    const char *localAppData = getenv("LOCALAPPDATA");
+    if (localAppData)
     {
-        std::wstring basePath = appDataPath;
-        basePath += L"\\ScalboostBrowser\\UserData";
-
-        // Crear el directorio base
-        ::CreateDirectoryW(basePath.c_str(), NULL);
-
-        // Crear el directorio para el perfil específico
-        std::wstring profilePath = basePath + L"\\" + std::wstring(profileId.begin(), profileId.end());
-        ::CreateDirectoryW(profilePath.c_str(), NULL);
-
-        // Crear los subdirectorios necesarios para CEF 130
-        std::wstring cachePath = profilePath + L"\\Cache";
-        ::CreateDirectoryW(cachePath.c_str(), NULL);
-
-        // Convertir de wstring a string para CEF
-        std::string utf8Path;
-        utf8Path.resize(WideCharToMultiByte(CP_UTF8, 0, profilePath.c_str(), -1, NULL, 0, NULL, NULL));
-        WideCharToMultiByte(CP_UTF8, 0, profilePath.c_str(), -1, &utf8Path[0], utf8Path.size(), NULL, NULL);
-        if (!utf8Path.empty() && utf8Path.back() == 0)
-        {
-            utf8Path.pop_back(); // Eliminar el terminador nulo
-        }
-
-        CefString(&settings.cache_path) = utf8Path;
+        strcpy(appDataPath, localAppData);
     }
     else
     {
-        // Fallback si no podemos obtener la ruta AppData
-        CefString(&settings.cache_path) = "";
+        // Alternativa: %USERPROFILE%\AppData\Local
+        const char *userProfile = getenv("USERPROFILE");
+        if (userProfile)
+        {
+            strcpy(appDataPath, userProfile);
+            strcat(appDataPath, "\\AppData\\Local");
+        }
+        else
+        {
+            // Última opción: C:\ProgramData
+            strcpy(appDataPath, "C:\\ProgramData");
+        }
     }
+
+    // Construir ruta de caché
+    std::string cachePath = std::string(appDataPath) + "\\ScalboostBrowser\\Cache\\" + profileId;
+
+    // Crear directorios necesarios
+    std::string baseDir = std::string(appDataPath) + "\\ScalboostBrowser\\Cache";
+    std::string mkdirCmd = "mkdir \"" + baseDir + "\" 2>nul";
+    system(mkdirCmd.c_str());
+
+    mkdirCmd = "mkdir \"" + cachePath + "\" 2>nul";
+    system(mkdirCmd.c_str());
+
 #elif defined(OS_MAC)
-    // En macOS, ubicación estándar para datos de aplicación
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(
-        NSApplicationSupportDirectory, NSUserDomainMask, YES);
-    NSString *appSupportDir = [paths firstObject];
-    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
-    if (!bundleID)
-    {
-        bundleID = @"com.scalboost.browser";
-    }
-    NSString *profileDir = [NSString stringWithFormat:@"%@/%@/UserData/%s",
-                                                      appSupportDir, bundleID, profileId.c_str()];
-    NSString *cacheDir = [profileDir stringByAppendingPathComponent:@"Cache"];
-
-    // Crear los directorios necesarios
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    [fileManager createDirectoryAtPath:profileDir
-           withIntermediateDirectories:YES
-                            attributes:nil
-                                 error:nil];
-    [fileManager createDirectoryAtPath:cacheDir
-           withIntermediateDirectories:YES
-                            attributes:nil
-                                 error:nil];
-
-    std::string cachePath = [profileDir UTF8String];
-    CefString(&settings.cache_path) = cachePath;
-#else
-    // En Linux, usar ~/.config
-    std::string homePath;
+    // Obtener ruta de Application Support (persistente entre reinicios)
+    std::string homePath = "";
     const char *homeEnv = getenv("HOME");
     if (homeEnv)
     {
@@ -698,19 +666,39 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     }
     else
     {
-        homePath = "/tmp";
+        homePath = "/Users/Shared"; // Alternativa si no hay HOME
     }
 
-    std::string basePath = homePath + "/.config/scalboost-browser/UserData";
-    std::string profilePath = basePath + "/" + profileId;
-    std::string cachePath = profilePath + "/Cache";
+    std::string cachePath = homePath + "/Library/Application Support/ScalboostBrowser/Cache/" + profileId;
 
-    // Crear los directorios necesarios
-    std::string command = "mkdir -p " + cachePath;
-    system(command.c_str());
+    // Crear directorios necesarios
+    std::string mkdirCmd = "mkdir -p '" + cachePath + "'";
+    system(mkdirCmd.c_str());
 
-    CefString(&settings.cache_path) = profilePath;
+#else
+    // En Linux, usar ~/.config (persistente entre reinicios)
+    std::string homePath = "";
+    const char *homeEnv = getenv("HOME");
+    if (homeEnv)
+    {
+        homePath = homeEnv;
+    }
+    else
+    {
+        homePath = "/var/lib"; // Alternativa si no hay HOME
+    }
+
+    std::string cachePath = homePath + "/.config/ScalboostBrowser/Cache/" + profileId;
+
+    // Crear directorios necesarios
+    std::string mkdirCmd = "mkdir -p '" + cachePath + "'";
+    system(mkdirCmd.c_str());
 #endif
+
+    // Asignar la ruta absoluta persistente
+    CefString(&settings.cache_path) = cachePath;
+
+    // Resto de tu código para crear el contexto
 
     // Configuraciones adicionales para CEF 130
     settings.persist_session_cookies = true;
