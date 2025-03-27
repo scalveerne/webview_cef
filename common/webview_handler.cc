@@ -1150,22 +1150,24 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
 
         if (identifierMatch)
         {
-            std::cout << "✅ Enviando mensaje al frame" << std::endl;
+            std::cout << "✅ Enviando mensaje al frame principal" << std::endl;
             frame->SendProcessMessage(PID_RENDERER, message);
         }
         else
         {
-            std::cout << "❌ El frameId no coincide con el main frame, buscando frame..." << std::endl;
-            CefRefPtr<CefFrame> targetFrame = bit->second.browser->GetFrame(CefString(frameId));
-            if (targetFrame)
+            std::cout << "❌ El frameId no coincide con el main frame, intentando enviar al main frame..." << std::endl;
+
+            // Simplemente enviarlo al frame principal, ya que la mayoría de los sitios
+            // usan el frame principal para la interacción
+            frame->SendProcessMessage(PID_RENDERER, message);
+
+            // Opcional: Si necesitas depurar todos los frames disponibles
+            std::vector<int64> frameIds;
+            bit->second.browser->GetFrameIdentifiers(frameIds);
+            std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
+            for (auto id : frameIds)
             {
-                std::cout << "✅ Frame encontrado, enviando mensaje" << std::endl;
-                targetFrame->SendProcessMessage(PID_RENDERER, message);
-            }
-            else
-            {
-                std::cout << "❌ Frame no encontrado. Intentando enviar al main frame de todos modos" << std::endl;
-                frame->SendProcessMessage(PID_RENDERER, message);
+                std::cout << "  ID: " << id << std::endl;
             }
         }
     }
