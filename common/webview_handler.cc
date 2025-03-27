@@ -10,7 +10,8 @@
 #include <chrono>
 #include <unordered_map>
 #include <cstdint>
-#include <cmath> // Para std::abs
+#include <cmath>     // Para std::abs
+#include <algorithm> // Para std::replace
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -486,17 +487,11 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
             GetModuleFileNameA(NULL, appPath, MAX_PATH);
             std::string exePath(appPath);
             size_t lastSlash = exePath.find_last_of("\\/");
-            cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
-
-            // 2. O usar directorio de usuario
-            // char userProfile[MAX_PATH];
-            // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
-            // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
-
-            // Sanitizar nombre de perfil
-            std::replace(profileId.begin(), profileId.end(), '/', '_');
-            std::replace(profileId.begin(), profileId.end(), '\\', '_');
-            std::replace(profileId.begin(), profileId.end(), ':', '_');
+            std::string sanitizedProfile = profileId;
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), '/', '_');
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), '\\', '_');
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), ':', '_');
+            cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + sanitizedProfile;
 #else
             cachePath = "/var/cache/tuapp/" + profileId; // Linux
                                                          // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
@@ -519,186 +514,744 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
             context = CefRequestContext::CreateContext(settings, nullptr);
             profile_contexts_[profileId] = context;
         }
-    }
 
-    // Crear diccionario para extra_info
-    CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
-    // extra_info->SetString("user-agent", user_agent);
+        // Método para obtener o crear un contexto de solicitud para un perfil específico
+        CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const std::string &profileId)
+        {
+            // Si no hay ID de perfil, usar el contexto global
+            if (profileId.empty())
+            {
+                return CefRequestContext::GetGlobalContext();
+            }
 
-    // Crear el navegador con el contexto específico del perfil
-    callback(CefBrowserHost::CreateBrowserSync(
-                 window_info,
-                 this,
-                 url,
-                 browser_settings,
-                 extra_info,
-                 context)
-                 ->GetIdentifier());
-}
+            // Buscar si ya existe un contexto para este perfil
+            auto it = profile_contexts_.find(profileId);
+            if (it != profile_contexts_.end())
+            {
+                return it->second;
+            }
 
-// Método para obtener o crear un contexto de solicitud para un perfil específico
-CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const std::string &profileId)
-{
-    // Si no hay ID de perfil, usar el contexto global
-    if (profileId.empty())
-    {
-        return CefRequestContext::GetGlobalContext();
-    }
+            // Crear un nuevo contexto para este perfil
+            CefRequestContextSettings settings;
 
-    // Buscar si ya existe un contexto para este perfil
-    auto it = profile_contexts_.find(profileId);
-    if (it != profile_contexts_.end())
-    {
-        return it->second;
-    }
-
-    // Crear un nuevo contexto para este perfil
-    CefRequestContextSettings settings;
-
-    // Configurar rutas específicas para el perfil
-    std::string cachePath;
+            // Configurar rutas específicas para el perfil
+            std::string cachePath;
 
 #ifdef _WIN32
-    // 1. Usar directorio de la aplicación
-    char appPath[MAX_PATH];
-    GetModuleFileNameA(NULL, appPath, MAX_PATH);
-    std::string exePath(appPath);
-    size_t lastSlash = exePath.find_last_of("\\/");
-    cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
-
-    // 2. O usar directorio de usuario
-    // char userProfile[MAX_PATH];
-    // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
-    // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
-
-    // Sanitizar nombre de perfil
-    std::replace(profileId.begin(), profileId.end(), '/', '_');
-    std::replace(profileId.begin(), profileId.end(), '\\', '_');
-    std::replace(profileId.begin(), profileId.end(), ':', '_');
+            // 1. Usar directorio de la aplicación
+            char appPath[MAX_PATH];
+            GetModuleFileNameA(NULL, appPath, MAX_PATH);
+            std::string exePath(appPath);
+            size_t lastSlash = exePath.find_last_of("\\/");
+            std::string sanitizedProfile = profileId;
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), '/', '_');
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), '\\', '_');
+            std::replace(sanitizedProfile.begin(), sanitizedProfile.end(), ':', '_');
+            cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + sanitizedProfile;
 #else
-    cachePath = "/var/cache/tuapp/" + profileId; // Linux
-    // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
+            cachePath = "/var/cache/tuapp/" + profileId; // Linux
+                                                         // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
 #endif
 
 // Crear directorio recursivamente
 #ifdef _WIN32
-    // Crear estructura de carpetas completa
-    std::string command = "mkdir \"" + cachePath + "\" 2>nul";
-    system(command.c_str());
+            // Crear estructura de carpetas completa
+            std::string command = "mkdir \"" + cachePath + "\" 2>nul";
+            system(command.c_str());
 #else
-    // Usar -p para crear padres
-    std::string command = "mkdir -p \"" + cachePath + "\"";
-    system(command.c_str());
+            // Usar -p para crear padres
+            std::string command = "mkdir -p \"" + cachePath + "\"";
+            system(command.c_str());
 #endif
 
-    CefString(&settings.cache_path) = cachePath;
+            CefString(&settings.cache_path) = cachePath;
 
-    // Crear y almacenar el contexto sin un manejador personalizado
-    CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
-    profile_contexts_[profileId] = context;
+            // Crear y almacenar el contexto sin un manejador personalizado
+            CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
+            profile_contexts_[profileId] = context;
 
-    return context;
-}
-
-void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY)
-{
-
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        CefMouseEvent ev;
-        ev.x = x;
-        ev.y = y;
-
-        // Iniciar siempre el estado de desplazamiento con un evento de rueda de valor cero
-        // Esto asegura que se inicialice correctamente el estado is_in_gesture_scroll_
-        static bool gesture_initialized = false;
-
-        if (!gesture_initialized)
-        {
-            // Enviar un evento inicial con delta cero para inicializar el estado de gesto
-            it->second.browser->GetHost()->SendMouseWheelEvent(ev, 0, 0);
-            gesture_initialized = true;
+            return context;
         }
+
+        void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY)
+        {
+
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                CefMouseEvent ev;
+                ev.x = x;
+                ev.y = y;
+
+                // Iniciar siempre el estado de desplazamiento con un evento de rueda de valor cero
+                // Esto asegura que se inicialice correctamente el estado is_in_gesture_scroll_
+                static bool gesture_initialized = false;
+
+                if (!gesture_initialized)
+                {
+                    // Enviar un evento inicial con delta cero para inicializar el estado de gesto
+                    it->second.browser->GetHost()->SendMouseWheelEvent(ev, 0, 0);
+                    gesture_initialized = true;
+                }
 
 #ifndef __APPLE__
-        // The scrolling direction on Windows and Linux is different from MacOS
-        deltaY = -deltaY;
-        // Flutter scrolls too slowly, usar un multiplicador más conservador
-        // Reducir de 10x a 3x para que el comportamiento sea más natural y menos detectable
-        it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX * 3, deltaY * 3);
+                // The scrolling direction on Windows and Linux is different from MacOS
+                deltaY = -deltaY;
+                // Flutter scrolls too slowly, usar un multiplicador más conservador
+                // Reducir de 10x a 3x para que el comportamiento sea más natural y menos detectable
+                it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX * 3, deltaY * 3);
 #else
-        it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX, deltaY);
+                it->second.browser->GetHost()->SendMouseWheelEvent(ev, deltaX, deltaY);
 #endif
-    }
-}
-
-void WebviewHandler::changeSize(int browserId, float a_dpi, int w, int h)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        it->second.dpi = a_dpi;
-        it->second.width = w;
-        it->second.height = h;
-        it->second.browser->GetHost()->WasResized();
-    }
-}
-
-// Helper para convertir nuestros modificadores de teclado a los de CEF
-uint32_t convertKeyModifiers(KeyboardModifiers modifiers)
-{
-    uint32_t cef_modifiers = 0;
-    if (modifiers & kShiftKey)
-        cef_modifiers |= EVENTFLAG_SHIFT_DOWN;
-    if (modifiers & kControlKey)
-        cef_modifiers |= EVENTFLAG_CONTROL_DOWN;
-    if (modifiers & kAltKey)
-        cef_modifiers |= EVENTFLAG_ALT_DOWN;
-    if (modifiers & kMetaKey)
-        cef_modifiers |= EVENTFLAG_COMMAND_DOWN;
-    return cef_modifiers;
-}
-
-void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int button)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        CefMouseEvent ev;
-        ev.x = x;
-        ev.y = y;
-
-        // Asegurar que click_count siempre sea al menos 1
-        if (it->second.click_count < 1)
-        {
-            it->second.click_count = 1;
+            }
         }
 
-        // 0 = botón izquierdo, 1 = botón central, 2 = botón derecho
-        if (button == 2)
+        void WebviewHandler::changeSize(int browserId, float a_dpi, int w, int h)
         {
-            // Para clic derecho, NO enviamos eventos de mouse al CEF
-            // Solo inyectamos JavaScript para disparar el evento contextmenu
-
-            if (!up) // Solo procesamos el evento de presionar, no el de soltar
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
             {
-                try
+                it->second.dpi = a_dpi;
+                it->second.width = w;
+                it->second.height = h;
+                it->second.browser->GetHost()->WasResized();
+            }
+        }
+
+        // Helper para convertir nuestros modificadores de teclado a los de CEF
+        uint32_t convertKeyModifiers(KeyboardModifiers modifiers)
+        {
+            uint32_t cef_modifiers = 0;
+            if (modifiers & kShiftKey)
+                cef_modifiers |= EVENTFLAG_SHIFT_DOWN;
+            if (modifiers & kControlKey)
+                cef_modifiers |= EVENTFLAG_CONTROL_DOWN;
+            if (modifiers & kAltKey)
+                cef_modifiers |= EVENTFLAG_ALT_DOWN;
+            if (modifiers & kMetaKey)
+                cef_modifiers |= EVENTFLAG_COMMAND_DOWN;
+            return cef_modifiers;
+        }
+
+        void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int button)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                CefMouseEvent ev;
+                ev.x = x;
+                ev.y = y;
+
+                // Asegurar que click_count siempre sea al menos 1
+                if (it->second.click_count < 1)
                 {
-                    // Inyectar código JavaScript para crear un evento contextmenu
+                    it->second.click_count = 1;
+                }
+
+                // 0 = botón izquierdo, 1 = botón central, 2 = botón derecho
+                if (button == 2)
+                {
+                    // Para clic derecho, NO enviamos eventos de mouse al CEF
+                    // Solo inyectamos JavaScript para disparar el evento contextmenu
+
+                    if (!up) // Solo procesamos el evento de presionar, no el de soltar
+                    {
+                        try
+                        {
+                            // Inyectar código JavaScript para crear un evento contextmenu
+                            std::stringstream js;
+                            js << "(() => {";
+                            js << "  try {";
+                            js << "    console.log('Right-click detected at (" << x << ", " << y << ")');";
+                            js << "    const evt = new MouseEvent('contextmenu', {";
+                            js << "      bubbles: true,";
+                            js << "      cancelable: true,";
+                            js << "      clientX: " << x << ",";
+                            js << "      clientY: " << y << ",";
+                            js << "      button: 2,"; // Botón derecho
+                            js << "      buttons: 2"; // Estado de botones: botón derecho presionado
+                            js << "    });";
+                            js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
+                            js << "    if (element) {";
+                            js << "      try {";
+                            js << "        element.dispatchEvent(evt);";
+                            js << "      } catch(e) {";
+                            js << "        console.error('Error dispatching contextmenu event:', e);";
+                            js << "        if (document.body) document.body.dispatchEvent(evt);";
+                            js << "        else document.dispatchEvent(evt);";
+                            js << "      }";
+                            js << "    } else if (document.body) {";
+                            js << "      document.body.dispatchEvent(evt);";
+                            js << "    } else {";
+                            js << "      document.dispatchEvent(evt);";
+                            js << "    }";
+                            js << "  } catch(e) {";
+                            js << "    console.error('Error in right-click handler:', e);";
+                            js << "  }";
+                            js << "})();";
+
+                            CefRefPtr<CefFrame> frame = it->second.browser->GetMainFrame();
+                            if (frame)
+                            {
+                                frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
+                            }
+                        }
+                        catch (...)
+                        {
+                            // Capturar cualquier excepción para evitar que la aplicación se cierre
+                        }
+                    }
+                    // No hacemos nada para el evento 'up' del botón derecho
+                }
+                else
+                {
+                    // Clic izquierdo - Implementar lógica de múltiples clics
+                    ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
+
+                    if (!up) // Evento de presionar botón
+                    {
+                        try
+                        {
+                            // Obtener tiempo actual en milisegundos
+                            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                           std::chrono::system_clock::now().time_since_epoch())
+                                           .count();
+
+                            // Verificar si es un clic múltiple (mismo lugar y en tiempo cercano)
+                            bool isMultiClick = false;
+                            if (now - it->second.last_click_time < browser_info::MULTI_CLICK_TIME)
+                            {
+                                // Verificar si el clic está cerca del anterior
+                                int dx = std::abs(x - it->second.last_click_x);
+                                int dy = std::abs(y - it->second.last_click_y);
+
+                                if (dx <= browser_info::MULTI_CLICK_TOLERANCE &&
+                                    dy <= browser_info::MULTI_CLICK_TOLERANCE)
+                                {
+                                    isMultiClick = true;
+                                }
+                            }
+
+                            // Actualizar recuento de clics
+                            if (isMultiClick)
+                            {
+                                it->second.click_count++;
+                                if (it->second.click_count > 3)
+                                {
+                                    it->second.click_count = 1; // Reiniciar después de triple clic
+                                }
+                            }
+                            else
+                            {
+                                it->second.click_count = 1; // Nuevo clic simple
+                            }
+
+                            // Guardar información del clic actual
+                            it->second.last_click_x = x;
+                            it->second.last_click_y = y;
+                            it->second.last_click_time = now;
+                        }
+                        catch (...)
+                        {
+                            // Si algo falla, asegurar click_count = 1
+                            it->second.click_count = 1;
+                        }
+
+                        // Asegurar que click_count siempre sea al menos 1
+                        if (it->second.click_count < 1)
+                        {
+                            it->second.click_count = 1;
+                        }
+
+                        if (it->second.is_dragging)
+                        {
+                            it->second.browser->GetHost()->DragTargetDrop(ev);
+                            it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                            it->second.is_dragging = false;
+                        }
+                        else
+                        {
+                            // Enviar evento de clic con el recuento correcto
+                            it->second.browser->GetHost()->SendMouseClickEvent(
+                                ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                        }
+                    }
+                    else // Evento de soltar botón
+                    {
+                        // Asegurar que click_count siempre sea al menos 1
+                        if (it->second.click_count < 1)
+                        {
+                            it->second.click_count = 1;
+                        }
+
+                        if (it->second.is_dragging)
+                        {
+                            it->second.browser->GetHost()->DragTargetDrop(ev);
+                            it->second.browser->GetHost()->DragSourceSystemDragEnded();
+                            it->second.is_dragging = false;
+                        }
+                        else
+                        {
+                            // Enviar evento de soltar con el mismo recuento de clics
+                            it->second.browser->GetHost()->SendMouseClickEvent(
+                                ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
+                        }
+                    }
+                }
+            }
+        }
+
+        void WebviewHandler::cursorMove(int browserId, int x, int y, bool dragging)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                CefMouseEvent ev;
+                ev.x = x;
+                ev.y = y;
+                if (dragging)
+                {
+                    ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
+                }
+
+                // Generar un evento intermedio de inicio de desplazamiento para evitar errores de is_in_gesture_scroll_
+                // Solo en caso de desplazamiento
+                static bool last_dragging_state = false;
+                if (dragging && !last_dragging_state)
+                {
+                    // Iniciar el estado de desplazamiento con un evento de rueda simulado
+                    CefMouseEvent scroll_ev;
+                    scroll_ev.x = x;
+                    scroll_ev.y = y;
+                    it->second.browser->GetHost()->SendMouseWheelEvent(scroll_ev, 0, 0);
+                }
+                last_dragging_state = dragging;
+
+                if (it->second.is_dragging && dragging)
+                {
+                    it->second.browser->GetHost()->DragTargetDragOver(ev, DRAG_OPERATION_EVERY);
+                }
+                else
+                {
+                    it->second.browser->GetHost()->SendMouseMoveEvent(ev, false);
+                }
+            }
+        }
+
+        bool WebviewHandler::StartDragging(CefRefPtr<CefBrowser> browser,
+                                           CefRefPtr<CefDragData> drag_data,
+                                           DragOperationsMask allowed_ops,
+                                           int x,
+                                           int y)
+        {
+            auto it = browser_map_.find(browser->GetIdentifier());
+            if (it != browser_map_.end() && it->second.browser->IsSame(browser))
+            {
+                CefMouseEvent ev;
+                ev.x = x;
+                ev.y = y;
+                ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
+                it->second.browser->GetHost()->DragTargetDragEnter(drag_data, ev, DRAG_OPERATION_EVERY);
+                it->second.is_dragging = true;
+            }
+            return true;
+        }
+
+        void WebviewHandler::OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser, const CefRange &selection_range, const CefRenderHandler::RectList &character_bounds)
+        {
+            CEF_REQUIRE_UI_THREAD();
+            auto it = browser_map_.find(browser->GetIdentifier());
+            if (it == browser_map_.end() || !it->second.browser.get() || browser->IsPopup())
+            {
+                return;
+            }
+            if (!character_bounds.empty())
+            {
+                if (it->second.is_ime_commit)
+                {
+                    auto lastCharacter = character_bounds.back();
+                    bool positionChanged = (lastCharacter.x != it->second.prev_ime_position.x) ||
+                                           (lastCharacter.y != it->second.prev_ime_position.y);
+                    if (positionChanged)
+                    {
+                        it->second.prev_ime_position = lastCharacter;
+                        onImeCompositionRangeChangedMessage(browser->GetIdentifier(),
+                                                            lastCharacter.x + lastCharacter.width,
+                                                            lastCharacter.y + lastCharacter.height);
+                    }
+                    it->second.is_ime_commit = false;
+                }
+                else
+                {
+                    auto firstCharacter = character_bounds.front();
+                    if (firstCharacter != it->second.prev_ime_position)
+                    {
+                        it->second.prev_ime_position = firstCharacter;
+                        onImeCompositionRangeChangedMessage(browser->GetIdentifier(), firstCharacter.x, firstCharacter.y + firstCharacter.height);
+                    }
+                }
+            }
+        }
+
+        void WebviewHandler::sendKeyEvent(CefKeyEvent & ev)
+        {
+            auto browser = current_focused_browser_;
+            if (!browser.get())
+            {
+                return;
+            }
+            browser->GetHost()->SendKeyEvent(ev);
+        }
+
+        void WebviewHandler::loadUrl(int browserId, std::string url)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                it->second.browser->GetMainFrame()->LoadURL(url);
+            }
+        }
+
+        void WebviewHandler::goForward(int browserId)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                it->second.browser->GetMainFrame()->GetBrowser()->GoForward();
+            }
+        }
+
+        void WebviewHandler::goBack(int browserId)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                it->second.browser->GetMainFrame()->GetBrowser()->GoBack();
+            }
+        }
+
+        void WebviewHandler::reload(int browserId)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                it->second.browser->GetMainFrame()->GetBrowser()->Reload();
+            }
+        }
+
+        void WebviewHandler::openDevTools(int browserId)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it != browser_map_.end())
+            {
+                CefWindowInfo windowInfo;
+#ifdef OS_WIN
+                windowInfo.SetAsPopup(nullptr, "DevTools");
+#endif
+                it->second.browser->GetHost()->ShowDevTools(windowInfo, this, CefBrowserSettings(), CefPoint());
+            }
+        }
+
+        void WebviewHandler::imeSetComposition(int browserId, std::string text)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it == browser_map_.end() || !it->second.browser.get())
+            {
+                return;
+            }
+
+            CefString cTextStr = CefString(text);
+
+            std::vector<CefCompositionUnderline> underlines;
+            cef_composition_underline_t underline = {};
+            underline.range.from = 0;
+            underline.range.to = static_cast<int>(0 + cTextStr.length());
+            underline.color = ColorUNDERLINE;
+            underline.background_color = ColorBKCOLOR;
+            underline.thick = 0;
+            underline.style = CEF_CUS_DOT;
+            underlines.push_back(underline);
+
+            // Keeps the caret at the end of the composition
+            auto selection_range_end = static_cast<int>(0 + cTextStr.length());
+            CefRange selection_range = CefRange(0, selection_range_end);
+            it->second.browser->GetHost()->ImeSetComposition(cTextStr, underlines, CefRange(UINT32_MAX, UINT32_MAX), selection_range);
+        }
+
+        void WebviewHandler::imeCommitText(int browserId, std::string text)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it == browser_map_.end() || !it->second.browser.get())
+            {
+                return;
+            }
+
+            CefString cTextStr = CefString(text);
+            it->second.is_ime_commit = true;
+
+            std::vector<CefCompositionUnderline> underlines;
+            auto selection_range_end = static_cast<int>(0 + cTextStr.length());
+            CefRange selection_range = CefRange(selection_range_end, selection_range_end);
+#ifndef _WIN32
+            it->second.browser->GetHost()->ImeSetComposition(cTextStr, underlines, CefRange(UINT32_MAX, UINT32_MAX), selection_range);
+#endif
+            it->second.browser->GetHost()->ImeCommitText(cTextStr, CefRange(UINT32_MAX, UINT32_MAX), 0);
+        }
+
+        void WebviewHandler::setClientFocus(int browserId, bool focus)
+        {
+            auto it = browser_map_.find(browserId);
+            if (it == browser_map_.end() || !it->second.browser.get())
+            {
+                return;
+            }
+            it->second.browser->GetHost()->SetFocus(focus);
+        }
+
+        void WebviewHandler::setCookie(const std::string &domain, const std::string &key, const std::string &value)
+        {
+            CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
+            if (manager)
+            {
+                CefCookie cookie;
+                CefString(&cookie.path).FromASCII("/");
+                CefString(&cookie.name).FromString(key.c_str());
+                CefString(&cookie.value).FromString(value.c_str());
+
+                if (!domain.empty())
+                {
+                    CefString(&cookie.domain).FromString(domain.c_str());
+                }
+
+                cookie.httponly = true;
+                cookie.secure = false;
+                std::string httpDomain = "https://" + domain + "/cookiestorage";
+                manager->SetCookie(httpDomain, cookie, nullptr);
+            }
+        }
+
+        void WebviewHandler::deleteCookie(const std::string &domain, const std::string &key)
+        {
+            CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
+            if (manager)
+            {
+                std::string httpDomain = "https://" + domain + "/cookiestorage";
+                manager->DeleteCookies(httpDomain, key, nullptr);
+            }
+        }
+
+        void WebviewHandler::visitAllCookies(std::function<void(std::map<std::string, std::map<std::string, std::string>>)> callback)
+        {
+            CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
+            if (!manager)
+            {
+                return;
+            }
+
+            CefRefPtr<WebviewCookieVisitor> cookieVisitor = new WebviewCookieVisitor();
+            cookieVisitor->setOnVisitComplete(callback);
+
+            manager->VisitAllCookies(cookieVisitor);
+        }
+
+        void WebviewHandler::visitUrlCookies(const std::string &domain, const bool &isHttpOnly, std::function<void(std::map<std::string, std::map<std::string, std::string>>)> callback)
+        {
+            CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
+            if (!manager)
+            {
+                return;
+            }
+
+            CefRefPtr<WebviewCookieVisitor> cookieVisitor = new WebviewCookieVisitor();
+            cookieVisitor->setOnVisitComplete(callback);
+
+            std::string httpDomain = "https://" + domain + "/cookiestorage";
+
+            manager->VisitUrlCookies(httpDomain, isHttpOnly, cookieVisitor);
+        }
+
+        void WebviewHandler::setJavaScriptChannels(int browserId, const std::vector<std::string> channels)
+        {
+            std::string extensionCode = "try{";
+            for (auto &channel : channels)
+            {
+                extensionCode += channel;
+                extensionCode += " = (e,r) => {external.JavaScriptChannel('";
+                extensionCode += channel;
+                extensionCode += "',e,r)};";
+            }
+            extensionCode += "}catch(e){console.log(e);}";
+            executeJavaScript(browserId, extensionCode);
+        }
+
+        void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId)
+        {
+            CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create(kExecuteJsCallbackMessage);
+            CefRefPtr<CefListValue> args = message->GetArgumentList();
+            args->SetInt(0, atoi(callbackId.c_str()));
+            args->SetBool(1, error);
+            args->SetString(2, result);
+            auto bit = browser_map_.find(browserId);
+            if (bit != browser_map_.end())
+            {
+                int64_t frameIdInt = atoll(frameId.c_str());
+                CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
+
+#if defined(OS_WIN) || defined(OS_MAC)
+                bool identifierMatch = frame->GetIdentifier().ToString() == std::to_string(frameIdInt);
+#else
+                bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
+#endif
+                if (identifierMatch)
+                {
+                    frame->SendProcessMessage(PID_RENDERER, message);
+                }
+            }
+        }
+
+        static std::string GetCallbackId()
+        {
+            auto time = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now());
+            time_t timestamp = time.time_since_epoch().count();
+            return std::to_string(timestamp);
+        }
+
+        void WebviewHandler::executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback)
+        {
+            if (!code.empty())
+            {
+                auto bit = browser_map_.find(browserId);
+                if (bit != browser_map_.end() && bit->second.browser.get())
+                {
+                    CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
+                    if (frame)
+                    {
+                        std::string finalCode = code;
+                        if (callback != nullptr)
+                        {
+                            std::string callbackId = GetCallbackId();
+
+                            finalCode = "external.EvaluateCallback('";
+                            finalCode += callbackId;
+                            finalCode += "',(function(){return ";
+                            finalCode += code;
+                            finalCode += "})());";
+                            js_callbacks_[callbackId] = callback;
+                        }
+                        frame->ExecuteJavaScript(finalCode, frame->GetURL(), 0);
+                    }
+                }
+            }
+        }
+
+        void WebviewHandler::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect & rect)
+        {
+            CEF_REQUIRE_UI_THREAD();
+            auto it = browser_map_.find(browser->GetIdentifier());
+            if (it == browser_map_.end() || !it->second.browser.get() || browser->IsPopup())
+            {
+                return;
+            }
+            rect.x = rect.y = 0;
+
+            if (it->second.width < 1)
+            {
+                rect.width = 1;
+            }
+            else
+            {
+                rect.width = it->second.width;
+            }
+
+            if (it->second.height < 1)
+            {
+                rect.height = 1;
+            }
+            else
+            {
+                rect.height = it->second.height;
+            }
+        }
+
+        bool WebviewHandler::GetScreenInfo(CefRefPtr<CefBrowser> browser, CefScreenInfo & screen_info)
+        {
+            // todo: hi dpi support
+            screen_info.device_scale_factor = browser_map_[browser->GetIdentifier()].dpi;
+            return false;
+        }
+
+        void WebviewHandler::OnPaint(CefRefPtr<CefBrowser> browser, CefRenderHandler::PaintElementType type,
+                                     const CefRenderHandler::RectList &dirtyRects, const void *buffer, int w, int h)
+        {
+            if (!browser->IsPopup() && onPaintCallback != nullptr)
+            {
+                onPaintCallback(browser->GetIdentifier(), buffer, w, h);
+            }
+        }
+
+        // CefContextMenuHandler methods
+        void WebviewHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
+                                                 CefRefPtr<CefFrame> frame,
+                                                 CefRefPtr<CefContextMenuParams> params,
+                                                 CefRefPtr<CefMenuModel> model)
+        {
+            // Asegurar que click_count siempre sea al menos 1 para el navegador actual
+            auto it = browser_map_.find(browser->GetIdentifier());
+            if (it != browser_map_.end())
+            {
+                if (it->second.click_count < 1)
+                {
+                    it->second.click_count = 1;
+                }
+            }
+
+            // Limpiar el modelo de menú para que no se muestre el menú contextual nativo
+            if (model)
+            {
+                model->Clear();
+            }
+        }
+
+        bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
+                                            CefRefPtr<CefFrame> frame,
+                                            CefRefPtr<CefContextMenuParams> params,
+                                            CefRefPtr<CefMenuModel> model,
+                                            CefRefPtr<CefRunContextMenuCallback> callback)
+        {
+            // Asegurar que click_count siempre sea al menos 1 para el navegador actual
+            auto it = browser_map_.find(browser->GetIdentifier());
+            if (it != browser_map_.end())
+            {
+                if (it->second.click_count < 1)
+                {
+                    it->second.click_count = 1;
+                }
+            }
+
+            // Cancelar inmediatamente el menú contextual
+            if (callback)
+            {
+                callback->Cancel();
+            }
+
+            try
+            {
+                // Solo inyectar JavaScript si tenemos un frame válido
+                if (frame)
+                {
+                    // Ahora vamos a inyectar JavaScript para simular un evento contextmenu
                     std::stringstream js;
                     js << "(() => {";
                     js << "  try {";
-                    js << "    console.log('Right-click detected at (" << x << ", " << y << ")');";
                     js << "    const evt = new MouseEvent('contextmenu', {";
                     js << "      bubbles: true,";
                     js << "      cancelable: true,";
-                    js << "      clientX: " << x << ",";
-                    js << "      clientY: " << y << ",";
+                    js << "      clientX: " << params->GetXCoord() << ",";
+                    js << "      clientY: " << params->GetYCoord() << ",";
                     js << "      button: 2,"; // Botón derecho
                     js << "      buttons: 2"; // Estado de botones: botón derecho presionado
                     js << "    });";
-                    js << "    let element = document.elementFromPoint(" << x << ", " << y << ");";
+                    js << "    let element = document.elementFromPoint(" << params->GetXCoord() << ", " << params->GetYCoord() << ");";
                     js << "    if (element) {";
                     js << "      try {";
                     js << "        element.dispatchEvent(evt);";
@@ -712,600 +1265,20 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int butto
                     js << "    } else {";
                     js << "      document.dispatchEvent(evt);";
                     js << "    }";
+                    js << "    console.log('Dispatched contextmenu event at (" << params->GetXCoord() << ", " << params->GetYCoord() << ")');";
                     js << "  } catch(e) {";
-                    js << "    console.error('Error in right-click handler:', e);";
+                    js << "    console.error('Error in contextmenu handler:', e);";
                     js << "  }";
                     js << "})();";
 
-                    CefRefPtr<CefFrame> frame = it->second.browser->GetMainFrame();
-                    if (frame)
-                    {
-                        frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
-                    }
-                }
-                catch (...)
-                {
-                    // Capturar cualquier excepción para evitar que la aplicación se cierre
+                    frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
                 }
             }
-            // No hacemos nada para el evento 'up' del botón derecho
-        }
-        else
-        {
-            // Clic izquierdo - Implementar lógica de múltiples clics
-            ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
-
-            if (!up) // Evento de presionar botón
+            catch (...)
             {
-                try
-                {
-                    // Obtener tiempo actual en milisegundos
-                    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                   std::chrono::system_clock::now().time_since_epoch())
-                                   .count();
-
-                    // Verificar si es un clic múltiple (mismo lugar y en tiempo cercano)
-                    bool isMultiClick = false;
-                    if (now - it->second.last_click_time < browser_info::MULTI_CLICK_TIME)
-                    {
-                        // Verificar si el clic está cerca del anterior
-                        int dx = std::abs(x - it->second.last_click_x);
-                        int dy = std::abs(y - it->second.last_click_y);
-
-                        if (dx <= browser_info::MULTI_CLICK_TOLERANCE &&
-                            dy <= browser_info::MULTI_CLICK_TOLERANCE)
-                        {
-                            isMultiClick = true;
-                        }
-                    }
-
-                    // Actualizar recuento de clics
-                    if (isMultiClick)
-                    {
-                        it->second.click_count++;
-                        if (it->second.click_count > 3)
-                        {
-                            it->second.click_count = 1; // Reiniciar después de triple clic
-                        }
-                    }
-                    else
-                    {
-                        it->second.click_count = 1; // Nuevo clic simple
-                    }
-
-                    // Guardar información del clic actual
-                    it->second.last_click_x = x;
-                    it->second.last_click_y = y;
-                    it->second.last_click_time = now;
-                }
-                catch (...)
-                {
-                    // Si algo falla, asegurar click_count = 1
-                    it->second.click_count = 1;
-                }
-
-                // Asegurar que click_count siempre sea al menos 1
-                if (it->second.click_count < 1)
-                {
-                    it->second.click_count = 1;
-                }
-
-                if (it->second.is_dragging)
-                {
-                    it->second.browser->GetHost()->DragTargetDrop(ev);
-                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
-                    it->second.is_dragging = false;
-                }
-                else
-                {
-                    // Enviar evento de clic con el recuento correcto
-                    it->second.browser->GetHost()->SendMouseClickEvent(
-                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
-                }
+                // Evitar que cualquier excepción durante el manejo del menú contextual cause el cierre
             }
-            else // Evento de soltar botón
-            {
-                // Asegurar que click_count siempre sea al menos 1
-                if (it->second.click_count < 1)
-                {
-                    it->second.click_count = 1;
-                }
 
-                if (it->second.is_dragging)
-                {
-                    it->second.browser->GetHost()->DragTargetDrop(ev);
-                    it->second.browser->GetHost()->DragSourceSystemDragEnded();
-                    it->second.is_dragging = false;
-                }
-                else
-                {
-                    // Enviar evento de soltar con el mismo recuento de clics
-                    it->second.browser->GetHost()->SendMouseClickEvent(
-                        ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, it->second.click_count);
-                }
-            }
+            // Devolvemos true para indicar que hemos manejado el menú contextual
+            return true;
         }
-    }
-}
-
-void WebviewHandler::cursorMove(int browserId, int x, int y, bool dragging)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        CefMouseEvent ev;
-        ev.x = x;
-        ev.y = y;
-        if (dragging)
-        {
-            ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
-        }
-
-        // Generar un evento intermedio de inicio de desplazamiento para evitar errores de is_in_gesture_scroll_
-        // Solo en caso de desplazamiento
-        static bool last_dragging_state = false;
-        if (dragging && !last_dragging_state)
-        {
-            // Iniciar el estado de desplazamiento con un evento de rueda simulado
-            CefMouseEvent scroll_ev;
-            scroll_ev.x = x;
-            scroll_ev.y = y;
-            it->second.browser->GetHost()->SendMouseWheelEvent(scroll_ev, 0, 0);
-        }
-        last_dragging_state = dragging;
-
-        if (it->second.is_dragging && dragging)
-        {
-            it->second.browser->GetHost()->DragTargetDragOver(ev, DRAG_OPERATION_EVERY);
-        }
-        else
-        {
-            it->second.browser->GetHost()->SendMouseMoveEvent(ev, false);
-        }
-    }
-}
-
-bool WebviewHandler::StartDragging(CefRefPtr<CefBrowser> browser,
-                                   CefRefPtr<CefDragData> drag_data,
-                                   DragOperationsMask allowed_ops,
-                                   int x,
-                                   int y)
-{
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it != browser_map_.end() && it->second.browser->IsSame(browser))
-    {
-        CefMouseEvent ev;
-        ev.x = x;
-        ev.y = y;
-        ev.modifiers = EVENTFLAG_LEFT_MOUSE_BUTTON;
-        it->second.browser->GetHost()->DragTargetDragEnter(drag_data, ev, DRAG_OPERATION_EVERY);
-        it->second.is_dragging = true;
-    }
-    return true;
-}
-
-void WebviewHandler::OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser, const CefRange &selection_range, const CefRenderHandler::RectList &character_bounds)
-{
-    CEF_REQUIRE_UI_THREAD();
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it == browser_map_.end() || !it->second.browser.get() || browser->IsPopup())
-    {
-        return;
-    }
-    if (!character_bounds.empty())
-    {
-        if (it->second.is_ime_commit)
-        {
-            auto lastCharacter = character_bounds.back();
-            bool positionChanged = (lastCharacter.x != it->second.prev_ime_position.x) ||
-                                   (lastCharacter.y != it->second.prev_ime_position.y);
-            if (positionChanged)
-            {
-                it->second.prev_ime_position = lastCharacter;
-                onImeCompositionRangeChangedMessage(browser->GetIdentifier(),
-                                                    lastCharacter.x + lastCharacter.width,
-                                                    lastCharacter.y + lastCharacter.height);
-            }
-            it->second.is_ime_commit = false;
-        }
-        else
-        {
-            auto firstCharacter = character_bounds.front();
-            if (firstCharacter != it->second.prev_ime_position)
-            {
-                it->second.prev_ime_position = firstCharacter;
-                onImeCompositionRangeChangedMessage(browser->GetIdentifier(), firstCharacter.x, firstCharacter.y + firstCharacter.height);
-            }
-        }
-    }
-}
-
-void WebviewHandler::sendKeyEvent(CefKeyEvent &ev)
-{
-    auto browser = current_focused_browser_;
-    if (!browser.get())
-    {
-        return;
-    }
-    browser->GetHost()->SendKeyEvent(ev);
-}
-
-void WebviewHandler::loadUrl(int browserId, std::string url)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        it->second.browser->GetMainFrame()->LoadURL(url);
-    }
-}
-
-void WebviewHandler::goForward(int browserId)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        it->second.browser->GetMainFrame()->GetBrowser()->GoForward();
-    }
-}
-
-void WebviewHandler::goBack(int browserId)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        it->second.browser->GetMainFrame()->GetBrowser()->GoBack();
-    }
-}
-
-void WebviewHandler::reload(int browserId)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        it->second.browser->GetMainFrame()->GetBrowser()->Reload();
-    }
-}
-
-void WebviewHandler::openDevTools(int browserId)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end())
-    {
-        CefWindowInfo windowInfo;
-#ifdef OS_WIN
-        windowInfo.SetAsPopup(nullptr, "DevTools");
-#endif
-        it->second.browser->GetHost()->ShowDevTools(windowInfo, this, CefBrowserSettings(), CefPoint());
-    }
-}
-
-void WebviewHandler::imeSetComposition(int browserId, std::string text)
-{
-    auto it = browser_map_.find(browserId);
-    if (it == browser_map_.end() || !it->second.browser.get())
-    {
-        return;
-    }
-
-    CefString cTextStr = CefString(text);
-
-    std::vector<CefCompositionUnderline> underlines;
-    cef_composition_underline_t underline = {};
-    underline.range.from = 0;
-    underline.range.to = static_cast<int>(0 + cTextStr.length());
-    underline.color = ColorUNDERLINE;
-    underline.background_color = ColorBKCOLOR;
-    underline.thick = 0;
-    underline.style = CEF_CUS_DOT;
-    underlines.push_back(underline);
-
-    // Keeps the caret at the end of the composition
-    auto selection_range_end = static_cast<int>(0 + cTextStr.length());
-    CefRange selection_range = CefRange(0, selection_range_end);
-    it->second.browser->GetHost()->ImeSetComposition(cTextStr, underlines, CefRange(UINT32_MAX, UINT32_MAX), selection_range);
-}
-
-void WebviewHandler::imeCommitText(int browserId, std::string text)
-{
-    auto it = browser_map_.find(browserId);
-    if (it == browser_map_.end() || !it->second.browser.get())
-    {
-        return;
-    }
-
-    CefString cTextStr = CefString(text);
-    it->second.is_ime_commit = true;
-
-    std::vector<CefCompositionUnderline> underlines;
-    auto selection_range_end = static_cast<int>(0 + cTextStr.length());
-    CefRange selection_range = CefRange(selection_range_end, selection_range_end);
-#ifndef _WIN32
-    it->second.browser->GetHost()->ImeSetComposition(cTextStr, underlines, CefRange(UINT32_MAX, UINT32_MAX), selection_range);
-#endif
-    it->second.browser->GetHost()->ImeCommitText(cTextStr, CefRange(UINT32_MAX, UINT32_MAX), 0);
-}
-
-void WebviewHandler::setClientFocus(int browserId, bool focus)
-{
-    auto it = browser_map_.find(browserId);
-    if (it == browser_map_.end() || !it->second.browser.get())
-    {
-        return;
-    }
-    it->second.browser->GetHost()->SetFocus(focus);
-}
-
-void WebviewHandler::setCookie(const std::string &domain, const std::string &key, const std::string &value)
-{
-    CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
-    if (manager)
-    {
-        CefCookie cookie;
-        CefString(&cookie.path).FromASCII("/");
-        CefString(&cookie.name).FromString(key.c_str());
-        CefString(&cookie.value).FromString(value.c_str());
-
-        if (!domain.empty())
-        {
-            CefString(&cookie.domain).FromString(domain.c_str());
-        }
-
-        cookie.httponly = true;
-        cookie.secure = false;
-        std::string httpDomain = "https://" + domain + "/cookiestorage";
-        manager->SetCookie(httpDomain, cookie, nullptr);
-    }
-}
-
-void WebviewHandler::deleteCookie(const std::string &domain, const std::string &key)
-{
-    CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
-    if (manager)
-    {
-        std::string httpDomain = "https://" + domain + "/cookiestorage";
-        manager->DeleteCookies(httpDomain, key, nullptr);
-    }
-}
-
-void WebviewHandler::visitAllCookies(std::function<void(std::map<std::string, std::map<std::string, std::string>>)> callback)
-{
-    CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
-    if (!manager)
-    {
-        return;
-    }
-
-    CefRefPtr<WebviewCookieVisitor> cookieVisitor = new WebviewCookieVisitor();
-    cookieVisitor->setOnVisitComplete(callback);
-
-    manager->VisitAllCookies(cookieVisitor);
-}
-
-void WebviewHandler::visitUrlCookies(const std::string &domain, const bool &isHttpOnly, std::function<void(std::map<std::string, std::map<std::string, std::string>>)> callback)
-{
-    CefRefPtr<CefCookieManager> manager = CefCookieManager::GetGlobalManager(nullptr);
-    if (!manager)
-    {
-        return;
-    }
-
-    CefRefPtr<WebviewCookieVisitor> cookieVisitor = new WebviewCookieVisitor();
-    cookieVisitor->setOnVisitComplete(callback);
-
-    std::string httpDomain = "https://" + domain + "/cookiestorage";
-
-    manager->VisitUrlCookies(httpDomain, isHttpOnly, cookieVisitor);
-}
-
-void WebviewHandler::setJavaScriptChannels(int browserId, const std::vector<std::string> channels)
-{
-    std::string extensionCode = "try{";
-    for (auto &channel : channels)
-    {
-        extensionCode += channel;
-        extensionCode += " = (e,r) => {external.JavaScriptChannel('";
-        extensionCode += channel;
-        extensionCode += "',e,r)};";
-    }
-    extensionCode += "}catch(e){console.log(e);}";
-    executeJavaScript(browserId, extensionCode);
-}
-
-void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId)
-{
-    CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create(kExecuteJsCallbackMessage);
-    CefRefPtr<CefListValue> args = message->GetArgumentList();
-    args->SetInt(0, atoi(callbackId.c_str()));
-    args->SetBool(1, error);
-    args->SetString(2, result);
-    auto bit = browser_map_.find(browserId);
-    if (bit != browser_map_.end())
-    {
-        int64_t frameIdInt = atoll(frameId.c_str());
-        CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
-
-#if defined(OS_WIN) || defined(OS_MAC)
-        bool identifierMatch = frame->GetIdentifier().ToString() == std::to_string(frameIdInt);
-#else
-        bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
-#endif
-        if (identifierMatch)
-        {
-            frame->SendProcessMessage(PID_RENDERER, message);
-        }
-    }
-}
-
-static std::string GetCallbackId()
-{
-    auto time = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now());
-    time_t timestamp = time.time_since_epoch().count();
-    return std::to_string(timestamp);
-}
-
-void WebviewHandler::executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback)
-{
-    if (!code.empty())
-    {
-        auto bit = browser_map_.find(browserId);
-        if (bit != browser_map_.end() && bit->second.browser.get())
-        {
-            CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
-            if (frame)
-            {
-                std::string finalCode = code;
-                if (callback != nullptr)
-                {
-                    std::string callbackId = GetCallbackId();
-
-                    finalCode = "external.EvaluateCallback('";
-                    finalCode += callbackId;
-                    finalCode += "',(function(){return ";
-                    finalCode += code;
-                    finalCode += "})());";
-                    js_callbacks_[callbackId] = callback;
-                }
-                frame->ExecuteJavaScript(finalCode, frame->GetURL(), 0);
-            }
-        }
-    }
-}
-
-void WebviewHandler::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect &rect)
-{
-    CEF_REQUIRE_UI_THREAD();
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it == browser_map_.end() || !it->second.browser.get() || browser->IsPopup())
-    {
-        return;
-    }
-    rect.x = rect.y = 0;
-
-    if (it->second.width < 1)
-    {
-        rect.width = 1;
-    }
-    else
-    {
-        rect.width = it->second.width;
-    }
-
-    if (it->second.height < 1)
-    {
-        rect.height = 1;
-    }
-    else
-    {
-        rect.height = it->second.height;
-    }
-}
-
-bool WebviewHandler::GetScreenInfo(CefRefPtr<CefBrowser> browser, CefScreenInfo &screen_info)
-{
-    // todo: hi dpi support
-    screen_info.device_scale_factor = browser_map_[browser->GetIdentifier()].dpi;
-    return false;
-}
-
-void WebviewHandler::OnPaint(CefRefPtr<CefBrowser> browser, CefRenderHandler::PaintElementType type,
-                             const CefRenderHandler::RectList &dirtyRects, const void *buffer, int w, int h)
-{
-    if (!browser->IsPopup() && onPaintCallback != nullptr)
-    {
-        onPaintCallback(browser->GetIdentifier(), buffer, w, h);
-    }
-}
-
-// CefContextMenuHandler methods
-void WebviewHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
-                                         CefRefPtr<CefFrame> frame,
-                                         CefRefPtr<CefContextMenuParams> params,
-                                         CefRefPtr<CefMenuModel> model)
-{
-    // Asegurar que click_count siempre sea al menos 1 para el navegador actual
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it != browser_map_.end())
-    {
-        if (it->second.click_count < 1)
-        {
-            it->second.click_count = 1;
-        }
-    }
-
-    // Limpiar el modelo de menú para que no se muestre el menú contextual nativo
-    if (model)
-    {
-        model->Clear();
-    }
-}
-
-bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
-                                    CefRefPtr<CefFrame> frame,
-                                    CefRefPtr<CefContextMenuParams> params,
-                                    CefRefPtr<CefMenuModel> model,
-                                    CefRefPtr<CefRunContextMenuCallback> callback)
-{
-    // Asegurar que click_count siempre sea al menos 1 para el navegador actual
-    auto it = browser_map_.find(browser->GetIdentifier());
-    if (it != browser_map_.end())
-    {
-        if (it->second.click_count < 1)
-        {
-            it->second.click_count = 1;
-        }
-    }
-
-    // Cancelar inmediatamente el menú contextual
-    if (callback)
-    {
-        callback->Cancel();
-    }
-
-    try
-    {
-        // Solo inyectar JavaScript si tenemos un frame válido
-        if (frame)
-        {
-            // Ahora vamos a inyectar JavaScript para simular un evento contextmenu
-            std::stringstream js;
-            js << "(() => {";
-            js << "  try {";
-            js << "    const evt = new MouseEvent('contextmenu', {";
-            js << "      bubbles: true,";
-            js << "      cancelable: true,";
-            js << "      clientX: " << params->GetXCoord() << ",";
-            js << "      clientY: " << params->GetYCoord() << ",";
-            js << "      button: 2,"; // Botón derecho
-            js << "      buttons: 2"; // Estado de botones: botón derecho presionado
-            js << "    });";
-            js << "    let element = document.elementFromPoint(" << params->GetXCoord() << ", " << params->GetYCoord() << ");";
-            js << "    if (element) {";
-            js << "      try {";
-            js << "        element.dispatchEvent(evt);";
-            js << "      } catch(e) {";
-            js << "        console.error('Error dispatching contextmenu event:', e);";
-            js << "        if (document.body) document.body.dispatchEvent(evt);";
-            js << "        else document.dispatchEvent(evt);";
-            js << "      }";
-            js << "    } else if (document.body) {";
-            js << "      document.body.dispatchEvent(evt);";
-            js << "    } else {";
-            js << "      document.dispatchEvent(evt);";
-            js << "    }";
-            js << "    console.log('Dispatched contextmenu event at (" << params->GetXCoord() << ", " << params->GetYCoord() << ")');";
-            js << "  } catch(e) {";
-            js << "    console.error('Error in contextmenu handler:', e);";
-            js << "  }";
-            js << "})();";
-
-            frame->ExecuteJavaScript(js.str(), frame->GetURL(), 0);
-        }
-    }
-    catch (...)
-    {
-        // Evitar que cualquier excepción durante el manejo del menú contextual cause el cierre
-    }
-
-    // Devolvemos true para indicar que hemos manejado el menú contextual
-    return true;
-}
