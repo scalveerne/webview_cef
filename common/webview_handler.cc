@@ -469,61 +469,8 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
     CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
-    // Obtener o crear el contexto de solicitud para este perfil
-    CefRefPtr<CefRequestContext> context;
-
-    // Si no hay ID de perfil, usar el contexto global
-    if (profileId.empty())
-    {
-        context = CefRequestContext::GetGlobalContext();
-    }
-    else
-    {
-        // Buscar si ya existe un contexto para este perfil
-        auto it = profile_contexts_.find(profileId);
-        if (it != profile_contexts_.end())
-        {
-            context = it->second;
-        }
-        else
-        {
-            // Crear un nuevo contexto para este perfil
-            CefRequestContextSettings settings;
-
-            // Configurar rutas específicas para el perfil
-            std::string cachePath;
-
-#ifdef _WIN32
-            // 1. Usar directorio de la aplicación
-            char appPath[MAX_PATH];
-            GetModuleFileNameA(NULL, appPath, MAX_PATH);
-            std::string exePath(appPath);
-            size_t lastSlash = exePath.find_last_of("\\/");
-            cachePath = exePath.substr(0, lastSlash) + "\\cache\\" + profileId;
-
-            // 2. O usar directorio de usuario
-            // char userProfile[MAX_PATH];
-            // SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, userProfile);
-            // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
-
-            // Sanitizar nombre de perfil
-            std::replace(profileId.begin(), profileId.end(), '/', '_');
-            std::replace(profileId.begin(), profileId.end(), '\\', '_');
-            std::replace(profileId.begin(), profileId.end(), ':', '_');
-#else
-            cachePath = "/var/cache/tuapp/" + profileId; // Linux
-                                                         // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
-#endif
-
-            createCacheDirectory(cachePath);
-
-            CefString(&settings.cache_path) = cachePath;
-
-            // Crear y almacenar el contexto
-            context = CefRequestContext::CreateContext(settings, nullptr);
-            profile_contexts_[profileId] = context;
-        }
-    }
+    // Obtener contexto de solicitud utilizando la función existente
+    CefRefPtr<CefRequestContext> context = GetRequestContextForProfile(profileId);
 
     // Crear diccionario para extra_info
     CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
@@ -576,12 +523,13 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // cachePath = std::string(userProfile) + "\\TuApp\\cache\\" + profileId;
 
     // Sanitizar nombre de perfil
-    std::replace(profileId.begin(), profileId.end(), '/', '_');
-    std::replace(profileId.begin(), profileId.end(), '\\', '_');
-    std::replace(profileId.begin(), profileId.end(), ':', '_');
+    std::string sanitizedProfileId = profileId;
+    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '/', '_');
+    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), '\\', '_');
+    std::replace(sanitizedProfileId.begin(), sanitizedProfileId.end(), ':', '_');
 #else
     cachePath = "/var/cache/tuapp/" + profileId; // Linux
-    // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
+                                                 // o para Mac: cachePath = "~/Library/Caches/TuApp/" + profileId;
 #endif
 
     createCacheDirectory(cachePath);
