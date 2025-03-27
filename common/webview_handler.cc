@@ -451,8 +451,10 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 #endif
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
+    browser_settings.javascript = STATE_ENABLED;
+    browser_settings.multi
 
-    CefWindowInfo window_info;
+        CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
     // Obtener o crear el contexto de solicitud para este perfil
@@ -488,7 +490,7 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 
     // Crear diccionario para extra_info
     CefRefPtr<CefDictionaryValue> extra_info = CefDictionaryValue::Create();
-    //extra_info->SetString("user-agent", user_agent);
+    // extra_info->SetString("user-agent", user_agent);
 
     // Crear el navegador con el contexto específico del perfil
     callback(CefBrowserHost::CreateBrowserSync(
