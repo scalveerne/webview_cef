@@ -499,6 +499,7 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // Si no hay ID de perfil, usar el contexto global
     if (profileId.empty())
     {
+        std::cout << "Usando contexto global para perfil vacío" << std::endl;
         return CefRequestContext::GetGlobalContext();
     }
 
@@ -506,8 +507,11 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     auto it = profile_contexts_.find(profileId);
     if (it != profile_contexts_.end())
     {
+        std::cout << "Reutilizando contexto existente para perfil: " << profileId << std::endl;
         return it->second;
     }
+
+    std::cout << "Creando nuevo contexto para perfil: " << profileId << std::endl;
 
     // Crear un nuevo contexto para este perfil
     CefRequestContextSettings settings;
@@ -522,39 +526,92 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     std::string exePath(appPath);
     size_t lastSlash = exePath.find_last_of("\\/");
 
-    // Crear una ruta junto a la aplicación
-    cachePath = exePath.substr(0, lastSlash) + "\\Cache";
-
-    // Añadir un subdirectorio para el perfil específico (simplificado)
-    if (!profileId.empty())
+    // Crear una ruta que sea estable y con permisos garantizados
+    char tempPath[MAX_PATH];
+    if (GetTempPathA(MAX_PATH, tempPath))
     {
-        // Simplificar el ID usando un hash
-        std::hash<std::string> hasher;
-        size_t hash = hasher(profileId);
-        std::stringstream ss;
-        ss << "\\profile_" << std::hex << hash % 10000; // Usar solo 4 dígitos hex
-        cachePath += ss.str();
+        // Usar TEMP que siempre tiene permisos
+        cachePath = std::string(tempPath) + "ScalBrowser\\profiles";
     }
+    else
+    {
+        // Fallback al directorio de la app
+        cachePath = exePath.substr(0, lastSlash) + "\\Cache";
+    }
+
+    // Usar directamente el ID del perfil (limitado a 20 caracteres por seguridad)
+    std::string safeProfileId = profileId;
+    if (safeProfileId.length() > 20)
+    {
+        safeProfileId = safeProfileId.substr(0, 20);
+    }
+
+    // Reemplazar caracteres problemáticos
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '/', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '\\', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), ':', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '*', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '?', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '"', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '<', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '>', '_');
+    std::replace(safeProfileId.begin(), safeProfileId.end(), '|', '_');
+
+    cachePath += "\\" + safeProfileId;
+
+    std::cout << "Intentando crear caché en: " << cachePath << std::endl;
 #else
-    // Código para Linux/Mac - mantener como estaba
-    // ...
+    // Código para Linux/Mac similar...
 #endif
 
-    // Asegurar que el directorio existe
+    // Intentar crear el directorio con mejor manejo de errores
+    bool directoryCreated = false;
     try
     {
-        std::filesystem::create_directories(cachePath);
+        directoryCreated = std::filesystem::create_directories(cachePath);
+        std::cout << "Directorio creado exitosamente: " << (directoryCreated ? "SÍ" : "NO (ya existía)") << std::endl;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error creando directorio de caché: " << e.what() << std::endl;
+        std::cerr << "ERROR creando directorio: " << cachePath << " - " << e.what() << std::endl;
+
+        // Intentar con una ubicación alternativa
+        char tempPath[MAX_PATH];
+        GetTempPathA(MAX_PATH, tempPath);
+        cachePath = std::string(tempPath) + "ScalBrowser_fallback\\" + safeProfileId;
+
+        std::cout << "Intentando ubicación alternativa: " << cachePath << std::endl;
+
+        try
+        {
+            directoryCreated = std::filesystem::create_directories(cachePath);
+            std::cout << "Directorio alternativo creado: " << (directoryCreated ? "SÍ" : "NO") << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "ERROR FATAL: No se pudo crear ningún directorio para el perfil" << std::endl;
+            return CefRequestContext::GetGlobalContext(); // Fallar de forma segura usando el contexto global
+        }
     }
 
     CefString(&settings.cache_path) = cachePath;
 
+    // Más configuraciones de perfil para mejorar estabilidad
+    settings.persist_session_cookies = 1;
+    settings.persist_user_preferences = 1;
+
     // Crear y almacenar el contexto
+    std::cout << "Creando contexto de CEF con ruta: " << cachePath << std::endl;
     CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
-    profile_contexts_[profileId] = context;
+    if (context)
+    {
+        std::cout << "Contexto creado exitosamente para perfil: " << profileId << std::endl;
+        profile_contexts_[profileId] = context;
+    }
+    else
+    {
+        std::cerr << "FALLO al crear contexto para perfil: " << profileId << std::endl;
+    }
 
     return context;
 }
