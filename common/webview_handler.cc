@@ -6,28 +6,30 @@
 
 #include <sstream>
 #include <string>
-#include <iostream>
-#include <chrono>
+#include <iostream>   // Para std::cout, std::cerr
+#include <functional> // Para std::hash
+#include <filesystem> // Para construir rutas (si usas C++17+) o concatenación manual
 #include <unordered_map>
-#include <cstdint>
-#include <cmath>      // Para std::abs
-#include <filesystem> // C++17
+#include <chrono>
+#include <cmath>
 
+// Incluye las cabeceras de CEF necesarias
+#include "include/cef_request_context.h"
+#include "include/cef_request_context_handler.h"
+#include "include/cef_values.h" // Para CefString
+#include "include/cef_cookie.h"
+#include "webview_cookieVisitor.h"
+
+// Incluye cabeceras específicas de plataforma para obtener rutas
 #ifdef _WIN32
 #include <windows.h>
-#include <shlobj.h>                 // Para SHGetFolderPath
-#pragma comment(lib, "shell32.lib") // Enlazar con shell32.lib para SHGetFolderPath
+#include <shlobj.h> // Para SHGetFolderPath (si prefieres AppData\Local sobre Temp)
+#pragma comment(lib, "shell32.lib")
+#else
+#include <cstdlib>    // Para getenv
+#include <sys/stat.h> // Para mkdir (si necesitaras crear manualmente, aunque no lo haremos aquí)
+#include <unistd.h>
 #endif
-
-#include "include/base/cef_callback.h"
-#include "include/cef_app.h"
-#include "include/cef_parser.h"
-#include "include/views/cef_browser_view.h"
-#include "include/views/cef_window.h"
-#include "include/wrapper/cef_closure_task.h"
-#include "include/wrapper/cef_helpers.h"
-
-#include <sstream>
 
 // std::to_string fails for ints on Ubuntu 24.04:
 // webview_handler.cc:86:86: error: no matching function for call to 'to_string'
@@ -496,76 +498,111 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
 // Método para obtener o crear un contexto de solicitud para un perfil específico
 CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const std::string &profileId)
 {
-    // Si no hay ID de perfil, usar el contexto global
+    // Si no hay ID de perfil, usar el contexto global (no persistente por defecto)
     if (profileId.empty())
     {
-        std::cout << "Usando contexto global para perfil vacío" << std::endl;
+        std::cout << "[CEF Context] Usando contexto global para perfil vacío." << std::endl;
         return CefRequestContext::GetGlobalContext();
     }
 
-    // Buscar si ya existe un contexto para este perfil
+    // --- PASO 1: Buscar si ya existe un contexto para este perfil ---
     auto it = profile_contexts_.find(profileId);
     if (it != profile_contexts_.end())
     {
-        std::cout << "Reutilizando contexto existente para perfil: " << profileId << std::endl;
-        return it->second;
+        std::cout << "[CEF Context] Reutilizando contexto existente para perfil: " << profileId << std::endl;
+        return it->second; // Devuelve el contexto encontrado
     }
 
-    std::cout << "Creando nuevo contexto para perfil: " << profileId << std::endl;
+    // --- PASO 2: Si no existe, crear uno nuevo ---
+    std::cout << "[CEF Context] Creando nuevo contexto para perfil: " << profileId << std::endl;
 
-    // Crear un nuevo contexto para este perfil
     CefRequestContextSettings settings;
 
-    // Sanear el ID del perfil para usarlo como nombre de directorio
+    // --- PASO 2a: Calcular la ruta de caché específica para este perfil ---
+
+    // Generar un nombre de directorio seguro a partir del profileId (alfanumérico)
+    // Usar un hash es bueno si los IDs pueden ser muy largos o contener caracteres no válidos para rutas.
+    // Si tus IDs ya son seguros para nombres de archivo/directorio, podrías usarlos directamente.
     std::hash<std::string> hasher;
-    std::string safeProfileId = "profile_" + std::to_string(hasher(profileId) % 1000000);
+    std::string safeProfileDirName = "profile_" + std::to_string(hasher(profileId) % 1000000); // Ejemplo con hash
 
-    // IMPORTANTE: La ruta debe ser subdirectorio del root_cache_path configurado en la inicialización
-    // Obtener el root_cache_path actual si está disponible
-    std::string rootCachePath;
-
-    // Obtener el directorio temporal como base
+    // Obtener la ruta raíz de caché (¡DEBE SER LA MISMA QUE EN startCEF!)
+    std::string rootCachePathBase;
+#ifdef _WIN32
     char tempPath[MAX_PATH];
-    GetTempPathA(MAX_PATH, tempPath);
-
-    // Usar el mismo ID único consistente con el configurado en la inicialización
-    std::string uniqueAppId = "ScalBrowser_1234";
-    rootCachePath = std::string(tempPath) + uniqueAppId;
-
-    // Construir la ruta del perfil como subdirectorio
-    std::string cachePath = rootCachePath + "\\profiles\\" + safeProfileId;
-
-    std::cout << "Intentando crear caché en: " << cachePath << std::endl;
-
-    // Crear la estructura de directorios completa
-    try
+    // Usar GetTempPathA o considerar SHGetFolderPathA con CSIDL_LOCAL_APPDATA para C:\Users\User\AppData\Local
+    if (GetTempPathA(MAX_PATH, tempPath) > 0)
     {
-        std::filesystem::create_directories(cachePath);
-        std::cout << "Directorio creado exitosamente" << std::endl;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "ERROR creando directorio: " << e.what() << std::endl;
-        return CefRequestContext::GetGlobalContext(); // Fallar de forma segura
-    }
-
-    // Configurar la ruta de caché en la configuración
-    CefString(&settings.cache_path) = cachePath;
-    settings.persist_session_cookies = 1;
-
-    // Crear el contexto con la configuración
-    CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
-    if (context)
-    {
-        profile_contexts_[profileId] = context;
-        std::cout << "Contexto creado exitosamente para perfil: " << profileId << std::endl;
+        std::string uniqueAppId = "ScalBrowser_1234"; // ¡EL MISMO ID ÚNICO!
+        rootCachePathBase = std::string(tempPath) + uniqueAppId;
     }
     else
     {
-        std::cerr << "FALLO al crear contexto para perfil: " << profileId << std::endl;
+        std::cerr << "[CEF Context] ERROR: No se pudo obtener la ruta temporal de Windows." << std::endl;
+        // Fallback MUY básico, considerar una mejor opción
+        rootCachePathBase = "C:\\ScalBrowserTemp\\ScalBrowser_1234";
     }
+#else
+    // Lógica para Linux/macOS (¡MISMA RUTA BASE QUE EN startCEF!)
+    const char *homeDir = getenv("HOME");
+    std::string uniqueAppId = "ScalBrowser_1234"; // ¡EL MISMO ID ÚNICO!
+    if (homeDir)
+    {
+        // Preferible usar ~/.cache/AppName/
+        rootCachePathBase = std::string(homeDir) + "/.cache/" + uniqueAppId;
+    }
+    else
+    {
+        // Fallback si HOME no está definido
+        rootCachePathBase = "/tmp/" + uniqueAppId;
+    }
+#endif
 
-    return context;
+    // Construir la ruta completa del perfil (Usar '/' para portabilidad en la construcción de strings)
+    // Asegúrate de que rootCachePathBase no termine con '/' antes de añadir más
+    if (!rootCachePathBase.empty() && (rootCachePathBase.back() == '/' || rootCachePathBase.back() == '\\'))
+    {
+        rootCachePathBase.pop_back();
+    }
+    std::string profileCachePath = rootCachePathBase + "/profiles/" + safeProfileDirName;
+
+    std::cout << "[CEF Context] Configurando ruta de caché para CEF: " << profileCachePath << std::endl;
+
+    // --- PASO 2b: Configurar las opciones de persistencia ---
+    CefString(&settings.cache_path) = profileCachePath;
+    settings.persist_session_cookies = true;  // Guarda cookies de sesión entre reinicios
+    settings.persist_user_preferences = true; // Guarda preferencias del usuario (zoom, etc.)
+
+    // --- PASO 2c: Crear el contexto ---
+    // No necesitamos un CefRequestContextHandler personalizado por ahora
+    CefRefPtr<CefRequestContext> context = CefRequestContext::CreateContext(settings, nullptr);
+
+    // --- PASO 3: Manejar resultado y almacenar/devolver ---
+    if (context)
+    {
+        // Guardar el contexto recién creado en el mapa para reutilización futura
+        profile_contexts_[profileId] = context;
+        std::cout << "[CEF Context] Contexto creado y almacenado exitosamente para perfil: " << profileId << std::endl;
+        return context;
+    }
+    else
+    {
+        // ¡Error crítico! CEF no pudo crear el contexto con la ruta especificada.
+        // Esto podría suceder si root_cache_path no se estableció, hay problemas de permisos,
+        // o la ruta es inválida por alguna razón.
+        std::cerr << "[CEF Context] ¡ERROR CRÍTICO! Falló la creación del contexto para perfil: "
+                  << profileId << " en la ruta: " << profileCachePath << std::endl;
+        std::cerr << "[CEF Context]            Verifica que CefSettings::root_cache_path se estableció correctamente en CefInitialize." << std::endl;
+        std::cerr << "[CEF Context]            Verifica los permisos del directorio base: " << rootCachePathBase << std::endl;
+
+        // Decidir cómo manejar el error:
+        // Opción 1: Devolver el contexto global como fallback (pierde aislamiento y persistencia específica)
+        std::cerr << "[CEF Context]            Usando contexto global como fallback." << std::endl;
+        return CefRequestContext::GetGlobalContext();
+
+        // Opción 2: Devolver nullptr (requiere que el código que llama maneje el error)
+        // return nullptr;
+    }
 }
 
 void WebviewHandler::sendScrollEvent(int browserId, int x, int y, int deltaX, int deltaY)

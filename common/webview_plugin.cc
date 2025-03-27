@@ -654,24 +654,61 @@ namespace webview_cef
 	{
 		CefSettings cefs;
 		cefs.windowless_rendering_enabled = true;
-		cefs.no_sandbox = true;
+		cefs.no_sandbox = true; // Considera habilitar sandbox en producción si es posible
 		cefs.log_severity = LOGSEVERITY_VERBOSE;
 
 		if (!userAgent.empty())
 		{
 			CefString(&cefs.user_agent_product) = userAgent;
 		}
-		// locale language setting
-		// CefString(&cefs.locale) = "zh-CN";
-#ifdef OS_MAC
-		// cef message loop handle by MainApplication on mac
-		cefs.external_message_pump = true;
-		// CefString(&cefs.browser_subprocess_path) = "/Library/Chaches"; //the helper Program path
+
+		// --- AÑADIR ESTO ---
+		// Define la ruta base para TODOS los datos de CEF (incluidos perfiles)
+		std::string rootCachePathBase;
+#ifdef _WIN32
+		char tempPath[MAX_PATH];
+		GetTempPathA(MAX_PATH, tempPath);
+		// Usa el mismo identificador único que en GetRequestContextForProfile
+		std::string uniqueAppId = "ScalBrowser_1234";
+		rootCachePathBase = std::string(tempPath) + uniqueAppId;
 #else
-		// cef message run in another thread on windows/linux
+		// Implementa la lógica para obtener una ruta base adecuada en Linux/macOS
+		// Ejemplo (puede necesitar ajustes):
+		// rootCachePathBase = "/tmp/ScalBrowser_1234";
+		// O mejor: ~/.cache/ScalBrowser/ o similar
+		char *homeDir = getenv("HOME");
+		if (homeDir)
+		{
+			rootCachePathBase = std::string(homeDir) + "/.cache/ScalBrowser_1234";
+		}
+		else
+		{
+			rootCachePathBase = "/tmp/ScalBrowser_1234"; // Fallback
+		}
+#endif
+
+		// Asegúrate de que el directorio base exista (opcional pero recomendado)
+		try
+		{
+			std::filesystem::create_directories(rootCachePathBase);
+		}
+		catch (const std::exception &e)
+		{
+			std::cerr << "ERROR creating root cache directory: " << e.what() << std::endl;
+			// Considera cómo manejar este error (¿continuar con caché en memoria?)
+		}
+
+		CefString(&cefs.root_cache_path) = rootCachePathBase;
+		// --- FIN DE LO AÑADIDO ---
+
+#ifdef OS_MAC
+		cefs.external_message_pump = true;
+#else
 		cefs.multi_threaded_message_loop = true;
 #endif
+
 		CefInitialize(mainArgs, cefs, app.get(), nullptr);
+		isCefInitialized = true; // Asegúrate de que esto se establezca aquí
 	}
 
 	void doMessageLoopWork()
