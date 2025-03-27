@@ -452,9 +452,8 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = 30;
     browser_settings.javascript = STATE_ENABLED;
-    browser_settings.multi
 
-        CefWindowInfo window_info;
+    CefWindowInfo window_info;
     window_info.SetAsWindowless(0);
 
     // Obtener o crear el contexto de solicitud para este perfil

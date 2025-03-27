@@ -655,6 +655,8 @@ namespace webview_cef
 		CefSettings cefs;
 		cefs.windowless_rendering_enabled = true;
 		cefs.no_sandbox = true;
+		cefs.log_severity = LOGSEVERITY_VERBOSE;
+
 		if (!userAgent.empty())
 		{
 			CefString(&cefs.user_agent_product) = userAgent;
