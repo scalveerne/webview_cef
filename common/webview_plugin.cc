@@ -10,6 +10,14 @@
 #include <iostream>
 #include <unordered_map>
 
+#if defined(_MSC_VER) && _MSC_VER >= 1900 && _MSC_VER < 1914
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#include <filesystem>
+namespace fs = std::filesystem;
+#endif
+
 namespace webview_cef
 {
 	CefMainArgs mainArgs;
@@ -690,7 +698,7 @@ namespace webview_cef
 		// Asegúrate de que el directorio base exista (opcional pero recomendado)
 		try
 		{
-			std::filesystem::create_directories(rootCachePathBase);
+			fs::create_directories(rootCachePathBase);
 		}
 		catch (const std::exception &e)
 		{
