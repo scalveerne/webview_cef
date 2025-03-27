@@ -212,9 +212,6 @@ void WebviewHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)
 {
     CEF_REQUIRE_UI_THREAD();
 
-    // Asegurarse de que el navegador no esté en modo pausado
-    browser->GetHost()->WasHidden(false);
-
     // Eliminar todas las referencias a este navegador
     auto it = browser_map_.find(browser->GetIdentifier());
     if (it != browser_map_.end())
@@ -273,11 +270,8 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
 {
-    // Mantener la funcionalidad existente que quita el foco del elemento activo
+    // Mantener solo la funcionalidad original
     executeJavaScript(browser->GetIdentifier(), "document.activeElement.blur()");
-
-    // Añadir la nueva funcionalidad para pausar el navegador
-    pauseBrowser(browser->GetIdentifier(), true);
 }
 
 bool WebviewHandler::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source)
@@ -287,8 +281,7 @@ bool WebviewHandler::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource sourc
 
 void WebviewHandler::OnGotFocus(CefRefPtr<CefBrowser> browser)
 {
-    // Añadir funcionalidad para reactivar el navegador
-    pauseBrowser(browser->GetIdentifier(), false);
+    // Dejar vacío como estaba originalmente
 }
 
 void WebviewHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
@@ -462,8 +455,6 @@ void WebviewHandler::CloseAllBrowsers(bool force_close)
     {
         if (it.second.browser != nullptr)
         {
-            // Asegurarse de que no esté pausado
-            it.second.browser->GetHost()->WasHidden(false);
             browsers_to_close.push_back(it.second.browser);
         }
     }
@@ -473,8 +464,6 @@ void WebviewHandler::CloseAllBrowsers(bool force_close)
     {
         browser->GetHost()->CloseBrowser(force_close);
     }
-
-    // No limpiar browser_map_ aquí - lo haremos en OnBeforeClose
 }
 
 // static
@@ -495,13 +484,10 @@ void WebviewHandler::closeBrowser(int browserId)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
-        // Asegurarse de que el navegador NO esté en modo pausado antes de cerrarlo
-        it->second.browser->GetHost()->WasHidden(false);
-
-        // Ahora cerrarlo normalmente
+        // Solo el código original
         it->second.browser->GetHost()->CloseBrowser(true);
-
-        // La eliminación del mapa la hacemos en OnBeforeClose
+        it->second.browser = nullptr;
+        browser_map_.erase(it);
     }
 }
 
@@ -1390,20 +1376,4 @@ bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
 
     // Devolvemos true para indicar que hemos manejado el menú contextual
     return true;
-}
-
-// Método simplificado para pausar/reactivar navegadores
-void WebviewHandler::pauseBrowser(int browserId, bool pause)
-{
-    auto it = browser_map_.find(browserId);
-    if (it != browser_map_.end() && it->second.browser.get())
-    {
-        // Asegurarse de que el navegador esté todavía válido
-        if (it->second.browser->GetHost())
-        {
-            // Pausar sólo si el navegador no está siendo cerrado
-            it->second.browser->GetHost()->WasHidden(pause);
-            it->second.browser->GetHost()->SetWindowlessFrameRate(pause ? 1 : 30);
-        }
-    }
 }
