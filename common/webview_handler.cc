@@ -256,7 +256,11 @@ bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::OnTakeFocus(CefRefPtr<CefBrowser> browser, bool next)
 {
+    // Mantener la funcionalidad existente que quita el foco del elemento activo
     executeJavaScript(browser->GetIdentifier(), "document.activeElement.blur()");
+
+    // Añadir la nueva funcionalidad para pausar el navegador
+    pauseBrowser(browser->GetIdentifier(), true);
 }
 
 bool WebviewHandler::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source)
@@ -266,6 +270,8 @@ bool WebviewHandler::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource sourc
 
 void WebviewHandler::OnGotFocus(CefRefPtr<CefBrowser> browser)
 {
+    // Añadir funcionalidad para reactivar el navegador
+    pauseBrowser(browser->GetIdentifier(), false);
 }
 
 void WebviewHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
@@ -1349,4 +1355,18 @@ bool WebviewHandler::RunContextMenu(CefRefPtr<CefBrowser> browser,
 
     // Devolvemos true para indicar que hemos manejado el menú contextual
     return true;
+}
+
+// Método simplificado para pausar/reactivar navegadores
+void WebviewHandler::pauseBrowser(int browserId, bool pause)
+{
+    auto it = browser_map_.find(browserId);
+    if (it != browser_map_.end() && it->second.browser.get())
+    {
+        // Esto notifica a CEF que debe reducir los recursos
+        it->second.browser->GetHost()->WasHidden(pause);
+
+        // Ajusta la velocidad de fotogramas
+        it->second.browser->GetHost()->SetWindowlessFrameRate(pause ? 1 : 30);
+    }
 }
