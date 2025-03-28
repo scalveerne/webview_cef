@@ -744,6 +744,26 @@ namespace webview_cef
 
 	void stopCEF()
 	{
+		// Evitar el uso de WebviewApp::Get() y WebviewHandler::Instance()
+
+		std::cout << "Cerrando CEF..." << std::endl;
+
+		// Verificar que 'app' sea válido (es una variable global declarada en este archivo)
+		if (app.get())
+		{
+			std::cout << "Cerrando aplicación CEF con gracilidad..." << std::endl;
+
+// Esperar brevemente antes de apagar
+#ifdef _WIN32
+			Sleep(300);
+#else
+			usleep(300000);
+#endif
+		}
+
+		// Simplemente llamar a CefShutdown directamente
 		CefShutdown();
+
+		std::cout << "CEF cerrado correctamente" << std::endl;
 	}
 }
