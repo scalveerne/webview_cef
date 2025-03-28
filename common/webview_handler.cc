@@ -489,67 +489,25 @@ void WebviewHandler::closeBrowser(int browserId)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
-        // Detener reproducción de medios antes de cerrar el navegador
-        // Este código busca todos los elementos de video y audio en la página
-        // y los detiene efectivamente para prevenir que sigan sonando
-        std::string stopMediaScript = R"(
-        (function() {
-            try {
-                // Método 1: Detener todos los elementos de video y audio nativos
-                console.log('Deteniendo medios en pestaña que se cierra...');
-                document.querySelectorAll('iframe').forEach(v => { 
-                    try { v.src = v.src; } catch(e) {} 
-                });
-                
-                document.querySelectorAll('video, audio').forEach(v => { 
-                    try {
-                        console.log('Deteniendo elemento multimedia:', v);
-                        v.pause();
-                        v.src = '';
-                        v.remove();
-                    } catch(e) {} 
-                });
-                
-                // Método 2: Detener reproductor de YouTube específicamente
-                if (window.location.href.includes('youtube.com')) {
-                    console.log('Detectado YouTube, aplicando métodos especiales');
-                    // Intentar detener reproductor específico de YouTube
-                    var ytPlayer = document.querySelector('.html5-video-player');
-                    if (ytPlayer) {
-                        if (typeof ytPlayer.stopVideo === 'function') {
-                            ytPlayer.stopVideo();
-                        }
-                    }
-                }
-                
-                // Método 3: Detener todas las conexiones de red pendientes
-                window.stop();
-                
-                console.log('Todos los medios detenidos exitosamente');
-            } catch(e) {
-                console.error('Error deteniendo medios:', e);
-            }
-        })();
-        )";
-
-        // Ejecutar el script en el frame principal
-        if (it->second.browser && it->second.browser->GetMainFrame())
+        // Detener recursos primero
+        try
         {
-            it->second.browser->GetMainFrame()->ExecuteJavaScript(
-                stopMediaScript, it->second.browser->GetMainFrame()->GetURL(), 0);
+            it->second.browser->GetHost()->SetAudioMuted(true);
 
-// Dar un momento para que se procese el script
+            // Forzar el cierre de forma agresiva (true)
+            it->second.browser->GetHost()->CloseBrowser(true);
+
+// Esperar y asegurar que se cierre
 #ifdef _WIN32
-            Sleep(100);
+            Sleep(200);
 #else
-            usleep(100000);
+            usleep(200000);
 #endif
         }
+        catch (...)
+        {
+        }
 
-        // Cerrar el navegador con fuerza (true) para garantizar que se cierre completamente
-        it->second.browser->GetHost()->CloseBrowser(true);
-
-        // Limpiar referencias
         it->second.browser = nullptr;
         browser_map_.erase(it);
     }
