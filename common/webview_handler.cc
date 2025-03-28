@@ -582,16 +582,16 @@ void WebviewHandler::closeBrowser(int browserId)
             std::cout << "PASO 4: Enviando mensaje IPC para matar el proceso de renderizado" << std::endl;
 
             // Enviar mensaje específico a cada frame disponible
-            std::vector<int64_t> frameIds;
+            std::vector<CefString> frameIds;
             it->second.browser->GetFrameIdentifiers(frameIds);
             std::cout << "   - Frames encontrados: " << frameIds.size() << std::endl;
 
-            for (auto frameId : frameIds)
+            for (auto &frameId : frameIds)
             {
                 CefRefPtr<CefFrame> frame = it->second.browser->GetFrameByIdentifier(frameId);
                 if (frame)
                 {
-                    std::cout << "   - Enviando mensaje KILL a frame ID: " << frameId << std::endl;
+                    std::cout << "   - Enviando mensaje KILL a frame ID: " << frameId.ToString() << std::endl;
                     CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("KILL_RENDERER_PROCESS");
                     frame->SendProcessMessage(PID_RENDERER, msg);
                 }
