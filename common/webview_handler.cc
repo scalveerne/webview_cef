@@ -588,7 +588,7 @@ void WebviewHandler::closeBrowser(int browserId)
 
             for (auto frameId : frameIds)
             {
-                CefRefPtr<CefFrame> frame = it->second.browser->GetFrame(frameId);
+                CefRefPtr<CefFrame> frame = it->second.browser->GetFrameByIdentifier(frameId);
                 if (frame)
                 {
                     std::cout << "   - Enviando mensaje KILL a frame ID: " << frameId << std::endl;
