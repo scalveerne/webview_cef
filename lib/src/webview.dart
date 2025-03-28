@@ -112,7 +112,7 @@ class WebViewController extends ValueNotifier<bool> {
   }
 
   void closeCurrentWebView() async {
-      await _pluginChannel.invokeMethod('close_cef_webview', _browserId);
+      await _pluginChannel.invokeMethod('close_cef_webview', [_browserId]);
   }
 
   /// Reloads the current document.
