@@ -496,6 +496,13 @@ void WebviewHandler::closeBrowser(int browserId)
     std::cout << "⚠️ CERRANDO BROWSER ID: " << browserId << "⚠️" << std::endl;
 
     auto it = browser_map_.find(browserId);
+    // Listar todos los browser ids vs el browserId actual
+    std::cout << "Lista de todos los browser ids vs el browserId actual:" << std::endl;
+    for (const auto &browser_pair : browser_map_)
+    {
+        std::cout << "Browser ID: " << browser_pair.first << std::endl;
+    }
+    std::cout << "Browser ID actual: " << browserId << std::endl;
     if (it != browser_map_.end())
     {
         try
