@@ -52,6 +52,12 @@ class WebviewManager extends ValueNotifier<bool> {
     }
   }
 
+  void closeCurrentWebView(int browserId) async {
+    if (browserId > 0) {
+      await pluginChannel.invokeMethod('close_cef_webview', browserId);
+    }
+  }
+
   WebviewManager._internal() : super(false);
 
   Future<void> initialize({String? userAgent}) async {
@@ -172,7 +178,9 @@ class WebviewManager extends ValueNotifier<bool> {
   }
 
   Future<void> _injectUserScriptIfNeeds(
-      int browserId, List<UserScript> scripts) async {
+    int browserId,
+    List<UserScript> scripts,
+  ) async {
     if (scripts.isEmpty) return;
 
     await _webViews[browserId]?.ready;

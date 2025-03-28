@@ -486,6 +486,12 @@ namespace webview_cef
 			m_handler->executeJavaScript(browserId, code);
 			result(1, nullptr);
 		}
+		else if (name.compare("close_cef_webview") == 0)
+		{
+			int browserId = int(webview_value_get_int(webview_value_get_list_value(values, 0)));
+			m_handler->closeBrowser(browserId);
+			result(1, nullptr);
+		}
 		else if (name.compare("evaluateJavascript") == 0)
 		{
 			int browserId = int(webview_value_get_int(webview_value_get_list_value(values, 0)));
