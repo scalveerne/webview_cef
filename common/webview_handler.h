@@ -215,6 +215,17 @@ public:
     void sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId);
     void executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback = nullptr);
 
+    // Añade este método para acceder a los browsers activos
+    static const std::unordered_map<int, browser_info> &GetActiveBrowsers()
+    {
+        static WebviewHandler *instance = nullptr;
+        if (!instance)
+        {
+            instance = new WebviewHandler();
+        }
+        return instance->browser_map_;
+    }
+
 private:
     // List of existing browser windows. Only accessed on the CEF UI thread.
     std::unordered_map<int, browser_info> browser_map_;

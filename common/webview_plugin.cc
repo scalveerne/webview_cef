@@ -756,25 +756,40 @@ namespace webview_cef
 
 	void stopCEF()
 	{
-		// Evitar el uso de WebviewApp::Get() y WebviewHandler::Instance()
+		// Cerrar todos los navegadores antes de finalizar CEF
+		std::cout << "Cerrando todos los navegadores..." << std::endl;
 
-		std::cout << "Cerrando CEF..." << std::endl;
-
-		// Verificar que 'app' sea válido (es una variable global declarada en este archivo)
-		if (app.get())
+		// Obtener acceso al mapa de navegadores activos
+		const auto &browsers = WebviewHandler::GetActiveBrowsers();
+		for (const auto &[id, browser_info] : browsers)
 		{
-			std::cout << "Cerrando aplicación CEF con gracilidad..." << std::endl;
+			std::cout << "Cerrando browser ID: " << id << " antes de salir..." << std::endl;
 
-// Esperar brevemente antes de apagar
-#ifdef _WIN32
-			Sleep(300);
-#else
-			usleep(300000);
-#endif
+			// Si el browser todavía es válido, silenciar audio y forzar cierre
+			if (browser_info.browser && browser_info.browser->GetHost())
+			{
+				// Silenciar audio
+				browser_info.browser->GetHost()->SetAudioMuted(true);
+
+				// Forzar cierre
+				browser_info.browser->GetHost()->CloseBrowser(true);
+			}
 		}
 
-		// Simplemente llamar a CefShutdown directamente
+// Esperar a que se procesen los mensajes
+#ifdef _WIN32
+		Sleep(500);
+#else
+		usleep(500000);
+#endif
+
+		// Asegurarse de que CefShutdown() se llame
 		CefShutdown();
+
+// En Windows, matar cualquier proceso residual de CEF
+#ifdef _WIN32
+		system("taskkill /F /IM scalboost_browser.exe /T 2>nul");
+#endif
 
 		std::cout << "CEF cerrado correctamente" << std::endl;
 	}
