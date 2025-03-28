@@ -668,6 +668,7 @@ namespace webview_cef
 	{
 		CefSettings cefs;
 		cefs.windowless_rendering_enabled = true;
+
 #ifdef NDEBUG
 		cefs.no_sandbox = false; // En producción, habilitar sandbox
 #else

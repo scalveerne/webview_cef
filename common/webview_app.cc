@@ -124,6 +124,9 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         command_line->AppendSwitch("disable-gpu-shader-disk-cache"); // disable gpu shader disk cache
         command_line->AppendSwitch("no-sanbox");
 
+        // Agregar parámetro para detener el audio en pestañas cerradas o inactivas
+        command_line->AppendSwitch("disable-background-media-suspend");
+
         command_line->AppendSwitchWithValue("enable-features", "NetworkService,NetworkServiceInProcess");
         command_line->AppendSwitch("enable-chrome-runtime");
         command_line->AppendSwitch("ignore-certificate-errors"); // ignore certificate errors
