@@ -489,7 +489,31 @@ void WebviewHandler::closeBrowser(int browserId)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
-        // Solo el código original
+        // Detener reproducción de medios antes de cerrar
+        std::string stopMediaScript =
+            "try {"
+            "  const mediaElements = document.querySelectorAll('video, audio');"
+            "  for (const element of mediaElements) {"
+            "    element.pause();"
+            "    element.src = '';"
+            "    element.remove();"
+            "  }"
+            "  window.stop();" // Detiene todas las solicitudes de red pendientes
+            "} catch(e) { console.error('Error deteniendo medios:', e); }";
+
+        if (it->second.browser && it->second.browser->GetMainFrame())
+        {
+            it->second.browser->GetMainFrame()->ExecuteJavaScript(
+                stopMediaScript, it->second.browser->GetMainFrame()->GetURL(), 0);
+
+// Pequeña pausa para permitir que el script se ejecute
+#ifdef _WIN32
+            Sleep(50);
+#else
+            usleep(50000);
+#endif
+        }
+
         it->second.browser->GetHost()->CloseBrowser(true);
         it->second.browser = nullptr;
         browser_map_.erase(it);
