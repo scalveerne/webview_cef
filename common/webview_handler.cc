@@ -497,7 +497,13 @@ void WebviewHandler::closeBrowser(int browserId)
     {
         // Primero, enviar un mensaje IPC al proceso de renderizado para forzar su cierre
         CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("KILL_RENDERER_PROCESS");
-        it->second.browser->SendProcessMessage(PID_RENDERER, msg);
+
+        // Cambio aquí: enviar el mensaje a través del frame principal
+        CefRefPtr<CefFrame> mainFrame = it->second.browser->GetMainFrame();
+        if (mainFrame)
+        {
+            mainFrame->SendProcessMessage(PID_RENDERER, msg);
+        }
 
         // Silenciar el audio mientras esperamos que se cierre
         it->second.browser->GetHost()->SetAudioMuted(true);
