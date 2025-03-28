@@ -202,25 +202,15 @@ void WebviewHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 
 bool WebviewHandler::DoClose(CefRefPtr<CefBrowser> browser)
 {
-    CEF_REQUIRE_UI_THREAD();
-
-    // Implementación basada en https://magpcss.org/ceforum/viewtopic.php?t=14670
-    // Esta solución evita que WM_CLOSE se propague a la ventana principal
-    // y también previene la ventana en blanco que aparece después del cierre
-
-#ifdef _WIN32
     // Obtener el handle de la ventana del navegador
     HWND hwnd = browser->GetHost()->GetWindowHandle();
-    if (hwnd)
-    {
-        // Destruir la ventana directamente, sin enviar WM_CLOSE
-        ::DestroyWindow(hwnd);
-        return true; // true = hemos manejado el evento nosotros mismos; no enviar WM_CLOSE
-    }
-#endif
 
-    // Para otros casos (no Windows) o si no pudimos obtener el HWND
-    return true; // Devolver true en todos los casos para evitar problemas de cierre
+    // Destruir la ventana directamente sin enviar WM_CLOSE
+    ::DestroyWindow(hwnd);
+
+    // Devolver true para indicar que nosotros manejamos el cierre
+    // y evitar que WM_CLOSE se propague a la ventana principal
+    return true;
 }
 
 void WebviewHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)
