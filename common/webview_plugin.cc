@@ -664,6 +664,7 @@ namespace webview_cef
 		cefs.windowless_rendering_enabled = true;
 		cefs.no_sandbox = true; // Considera habilitar sandbox en producción si es posible
 		cefs.log_severity = LOGSEVERITY_VERBOSE;
+		cefs.persist_session_cookies = true;
 
 		if (!userAgent.empty())
 		{
