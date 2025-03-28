@@ -492,41 +492,144 @@ bool WebviewHandler::IsChromeRuntimeEnabled()
 
 void WebviewHandler::closeBrowser(int browserId)
 {
+    // Añadir logs extensivos
+    std::cout << "⚠️ CERRANDO BROWSER ID: " << browserId << "⚠️" << std::endl;
+
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
-        // Primero, enviar un mensaje IPC al proceso de renderizado para forzar su cierre
-        CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("KILL_RENDERER_PROCESS");
-
-        // Cambio aquí: enviar el mensaje a través del frame principal
-        CefRefPtr<CefFrame> mainFrame = it->second.browser->GetMainFrame();
-        if (mainFrame)
+        try
         {
-            mainFrame->SendProcessMessage(PID_RENDERER, msg);
+            // Log paso 1
+            std::cout << "PASO 1: Silenciando audio" << std::endl;
+            // Primero silenciar audio inmediatamente
+            it->second.browser->GetHost()->SetAudioMuted(true);
+
+            // Log paso 2
+            std::cout << "PASO 2: Ejecutando JavaScript para matar procesos multimedia" << std::endl;
+
+            // Enfoque ultra agresivo para YouTube
+            std::string killMediaScript = R"(
+            (function() {
+                console.log('[KILL_SCRIPT] Inicio de destrucción de medios');
+                try {
+                    // 1. Matar todos los elementos de video/audio
+                    const mediaElements = document.querySelectorAll('video, audio');
+                    console.log('[KILL_SCRIPT] Encontrados elementos multimedia:', mediaElements.length);
+                    
+                    mediaElements.forEach(function(media) {
+                        try {
+                            console.log('[KILL_SCRIPT] Matando elemento multimedia:', media.src);
+                            media.pause();
+                            media.src = '';
+                            media.load();
+                            media.remove();
+                        } catch(e) { console.error('[KILL_SCRIPT] Error al matar media:', e); }
+                    });
+                    
+                    // 2. Sobreescribir la API de audio para Youtube
+                    if (typeof AudioContext !== 'undefined') {
+                        AudioContext.prototype.createMediaElementSource = function() { 
+                            console.log('[KILL_SCRIPT] Bloqueando createMediaElementSource');
+                            return null; 
+                        };
+                    }
+                    
+                    // 3. Sobreescribir métodos de reproducción en YouTube específicamente
+                    if (window.location.href.includes('youtube')) {
+                        console.log('[KILL_SCRIPT] Detectado YouTube, aplicando métodos letales');
+                        if (document.querySelector('.html5-video-player')) {
+                            document.querySelectorAll('.html5-video-player').forEach(function(player) {
+                                console.log('[KILL_SCRIPT] Matando reproductor YouTube');
+                                player.innerHTML = '';
+                            });
+                        }
+                    }
+                    
+                    // 4. Detener todos los temporizadores de la página
+                    let id = window.setTimeout(function() {}, 0);
+                    while (id--) {
+                        window.clearTimeout(id);
+                    }
+                    
+                    // 5. Destruir todos los WebWorkers
+                    try {
+                        window.stop();
+                    } catch(e) { console.error('[KILL_SCRIPT] Error en window.stop():', e); }
+
+                    console.log('[KILL_SCRIPT] Proceso de destrucción de medios completado');
+                } catch(e) {
+                    console.error('[KILL_SCRIPT] Error global:', e);
+                }
+            })();
+            )";
+
+            if (it->second.browser && it->second.browser->GetMainFrame())
+            {
+                it->second.browser->GetMainFrame()->ExecuteJavaScript(
+                    killMediaScript, it->second.browser->GetMainFrame()->GetURL(), 0);
+
+                // Esperar que se ejecute
+                std::cout << "PASO 3: Esperando ejecución del script..." << std::endl;
+#ifdef _WIN32
+                Sleep(200); // Aumentado tiempo de espera
+#else
+                usleep(200000);
+#endif
+            }
+
+            // Log paso 4
+            std::cout << "PASO 4: Enviando mensaje IPC para matar el proceso de renderizado" << std::endl;
+
+            // Enviar mensaje específico a cada frame disponible
+            std::vector<int64_t> frameIds;
+            it->second.browser->GetFrameIdentifiers(frameIds);
+            std::cout << "   - Frames encontrados: " << frameIds.size() << std::endl;
+
+            for (auto frameId : frameIds)
+            {
+                CefRefPtr<CefFrame> frame = it->second.browser->GetFrame(frameId);
+                if (frame)
+                {
+                    std::cout << "   - Enviando mensaje KILL a frame ID: " << frameId << std::endl;
+                    CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("KILL_RENDERER_PROCESS");
+                    frame->SendProcessMessage(PID_RENDERER, msg);
+                }
+            }
+
+            // Log paso 5
+            std::cout << "PASO 5: Cerrando navegador con fuerza" << std::endl;
+            it->second.browser->GetHost()->CloseBrowser(true); // Forzar cierre
+
+            // Log paso 6 - Esperar más tiempo
+            std::cout << "PASO 6: Esperando finalización de cierre..." << std::endl;
+#ifdef _WIN32
+            Sleep(300); // Esperar más tiempo
+#else
+            usleep(300000);
+#endif
+
+            // Log paso 7
+            std::cout << "PASO 7: Liberando recursos y eliminando referencias" << std::endl;
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "❌ EXCEPCIÓN durante cierre: " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "❌ EXCEPCIÓN DESCONOCIDA durante cierre" << std::endl;
         }
 
-        // Silenciar el audio mientras esperamos que se cierre
-        it->second.browser->GetHost()->SetAudioMuted(true);
-
-// Esperar brevemente para permitir que el mensaje IPC sea procesado
-#ifdef _WIN32
-        Sleep(100);
-#else
-        usleep(100000);
-#endif
-
-        // Forzar el cierre de forma agresiva
-        it->second.browser->GetHost()->CloseBrowser(true);
-
-// Esperar y asegurar que se cierre
-#ifdef _WIN32
-        Sleep(200);
-#else
-        usleep(200000);
-#endif
-
+        // Asegurar que se eliminen todas las referencias
         it->second.browser = nullptr;
         browser_map_.erase(it);
+
+        std::cout << "✅ PROCESO DE CIERRE COMPLETADO para browser ID: " << browserId << std::endl;
+    }
+    else
+    {
+        std::cout << "❌ No se encontró el browser ID: " << browserId << std::endl;
     }
 }
 
