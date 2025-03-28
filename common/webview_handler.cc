@@ -131,6 +131,12 @@ bool WebviewHandler::OnProcessMessageReceived(
             }
         }
     }
+    else if (message_name.ToString() == "KILL_RENDERER_PROCESS")
+    {
+        // Forzar la terminación del proceso
+        std::exit(EXIT_FAILURE);
+        return true;
+    }
     return false;
 }
 
@@ -489,24 +495,29 @@ void WebviewHandler::closeBrowser(int browserId)
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
     {
-        // Detener recursos primero
-        try
-        {
-            it->second.browser->GetHost()->SetAudioMuted(true);
+        // Primero, enviar un mensaje IPC al proceso de renderizado para forzar su cierre
+        CefRefPtr<CefProcessMessage> msg = CefProcessMessage::Create("KILL_RENDERER_PROCESS");
+        it->second.browser->SendProcessMessage(PID_RENDERER, msg);
 
-            // Forzar el cierre de forma agresiva (true)
-            it->second.browser->GetHost()->CloseBrowser(true);
+        // Silenciar el audio mientras esperamos que se cierre
+        it->second.browser->GetHost()->SetAudioMuted(true);
+
+// Esperar brevemente para permitir que el mensaje IPC sea procesado
+#ifdef _WIN32
+        Sleep(100);
+#else
+        usleep(100000);
+#endif
+
+        // Forzar el cierre de forma agresiva
+        it->second.browser->GetHost()->CloseBrowser(true);
 
 // Esperar y asegurar que se cierre
 #ifdef _WIN32
-            Sleep(200);
+        Sleep(200);
 #else
-            usleep(200000);
+        usleep(200000);
 #endif
-        }
-        catch (...)
-        {
-        }
 
         it->second.browser = nullptr;
         browser_map_.erase(it);
