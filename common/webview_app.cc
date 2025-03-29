@@ -68,6 +68,8 @@ namespace
                                        CefRefPtr<CefBrowserView> popup_browser_view,
                                        bool is_devtools) override
         {
+            std::cout << "----> OnPopupBrowserViewCreated called! Is DevTools: "
+                      << (is_devtools ? "yes" : "no") << std::endl;
             // Create a new top-level Window for the popup. It will show itself after
             // creation.
             CefWindow::CreateTopLevelWindow(
