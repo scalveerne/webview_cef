@@ -672,7 +672,6 @@ namespace webview_cef
 	{
 		CefSettings cefs;
 		cefs.windowless_rendering_enabled = true;
-		cefs.background_color = 0;
 
 #ifdef NDEBUG
 		cefs.no_sandbox = false;
@@ -691,6 +690,7 @@ namespace webview_cef
 		std::string rootCachePathBase;
 
 #ifdef _WIN32
+		cefs.multi_threaded_message_loop = true;
 		char tempPath[MAX_PATH];
 		GetTempPathA(MAX_PATH, tempPath);
 		// Usa el mismo identificador único que en GetRequestContextForProfile

@@ -117,13 +117,9 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         }
         // El más importante para CEF 103
 
-        // Añadir estos switches para prevenir la ventana fantasma
-        command_line->AppendSwitch("disable-features=OverlayScrollbar,WindowServiceInProcess");
-        command_line->AppendSwitch("enable-begin-frame-scheduling");
 
         command_line->AppendSwitch("allow-running-insecure-content");
         command_line->AppendSwitch("disable-popup-blocking"); // allow running insecure content in secure pages
-        // Don't create a "GPUCache" directory when cache-path is unspecified.
         command_line->AppendSwitch("disable-gpu-shader-disk-cache"); // disable gpu shader disk cache
         command_line->AppendSwitch("no-sanbox");
 
