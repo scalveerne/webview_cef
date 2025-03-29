@@ -1,3 +1,4 @@
+
 #include "webview_plugin.h"
 
 #ifdef OS_MAC
@@ -299,13 +300,13 @@ namespace webview_cef
 
 			m_handler->createBrowser(url, profileId, [=](int browserId)
 									 {
-				std::shared_ptr<WebviewTexture> renderer = m_createTextureFunc();
-				m_renderers[browserId] = renderer;
-				WValue *response = webview_value_new_list();
-				webview_value_append(response, webview_value_new_int(browserId));
-				webview_value_append(response, webview_value_new_int(renderer->textureId));
-				result(1, response);
-				webview_value_unref(response); });
+			std::shared_ptr<WebviewTexture> renderer = m_createTextureFunc();
+			m_renderers[browserId] = renderer;
+			WValue *response = webview_value_new_list();
+			webview_value_append(response, webview_value_new_int(browserId));
+			webview_value_append(response, webview_value_new_int(renderer->textureId));
+			result(1, response);
+			webview_value_unref(response); });
 		}
 		else if (name.compare("close") == 0)
 		{
@@ -417,21 +418,21 @@ namespace webview_cef
 		{
 			m_handler->visitAllCookies([=](std::map<std::string, std::map<std::string, std::string>> cookies)
 									   {
-				WValue* retMap = webview_value_new_map();
-				for (auto &cookie : cookies)
+			WValue* retMap = webview_value_new_map();
+			for (auto &cookie : cookies)
+			{
+				WValue* tempMap = webview_value_new_map();
+				for (auto &c : cookie.second)
 				{
-					WValue* tempMap = webview_value_new_map();
-					for (auto &c : cookie.second)
-					{
-						WValue * val = webview_value_new_string(const_cast<char *>(c.second.c_str()));
-						webview_value_set_string(tempMap, c.first.c_str(), val);
-						webview_value_unref(val);
-					}
-					webview_value_set_string(retMap, cookie.first.c_str(), tempMap);
-					webview_value_unref(tempMap);
+					WValue * val = webview_value_new_string(const_cast<char *>(c.second.c_str()));
+					webview_value_set_string(tempMap, c.first.c_str(), val);
+					webview_value_unref(val);
 				}
-				result(1, retMap);	
-				webview_value_unref(retMap); });
+				webview_value_set_string(retMap, cookie.first.c_str(), tempMap);
+				webview_value_unref(tempMap);
+			}
+			result(1, retMap);	
+			webview_value_unref(retMap); });
 		}
 		else if (name.compare("visitUrlCookies") == 0)
 		{
@@ -439,21 +440,21 @@ namespace webview_cef
 			const auto isHttpOnly = webview_value_get_bool(webview_value_get_list_value(values, 1));
 			m_handler->visitUrlCookies(domain, isHttpOnly, [=](std::map<std::string, std::map<std::string, std::string>> cookies)
 									   {
-				WValue* retMap = webview_value_new_map();
-				for (auto &cookie : cookies)
+			WValue* retMap = webview_value_new_map();
+			for (auto &cookie : cookies)
+			{
+				WValue* tempMap = webview_value_new_map();
+				for (auto &c : cookie.second)
 				{
-					WValue* tempMap = webview_value_new_map();
-					for (auto &c : cookie.second)
-					{
-						WValue * val = webview_value_new_string(const_cast<char *>(c.second.c_str()));
-						webview_value_set_string(tempMap, c.first.c_str(), val);
-						webview_value_unref(val);
-					}
-					webview_value_set_string(retMap, cookie.first.c_str(), tempMap);
-					webview_value_unref(tempMap);
+					WValue * val = webview_value_new_string(const_cast<char *>(c.second.c_str()));
+					webview_value_set_string(tempMap, c.first.c_str(), val);
+					webview_value_unref(val);
 				}
-				result(1, retMap);	
-				webview_value_unref(retMap); });
+				webview_value_set_string(retMap, cookie.first.c_str(), tempMap);
+				webview_value_unref(tempMap);
+			}
+			result(1, retMap);	
+			webview_value_unref(retMap); });
 		}
 		else if (name.compare("setJavaScriptChannels") == 0)
 		{
@@ -500,58 +501,58 @@ namespace webview_cef
 			const auto code = webview_value_get_string(webview_value_get_list_value(values, 1));
 			m_handler->executeJavaScript(browserId, code, [=](CefRefPtr<CefValue> values)
 										 {
-                WValue* retValue;
+            WValue* retValue;
 
-                if (values == nullptr) {
-                    result(1, nullptr);
-                    return;
-                }
+            if (values == nullptr) {
+                result(1, nullptr);
+                return;
+            }
 
-                switch(values->GetType()) {
-                    case VTYPE_BOOL:
-                        retValue = webview_value_new_bool(values->GetBool());
-                        break;
-                    case VTYPE_DOUBLE:
-                        retValue = webview_value_new_double(values->GetDouble());
-                        break;
-                    case VTYPE_INT:
-                        retValue = webview_value_new_int(values->GetInt());
-                        break;
-                    case VTYPE_STRING:
-                        retValue = webview_value_new_string(values->GetString().ToString().c_str());
-                        break;
-                    case VTYPE_LIST: {
-                        retValue = webview_value_new_list();
-                        CefRefPtr<CefListValue> list = values->GetList();
-                        
-                        if (list) {
-                            for (size_t i = 0; i < list->GetSize(); ++i) {
-                                CefValueType type = list->GetType(i);
-                                CefRefPtr<CefValue> listItem = list->GetValue(i);
+            switch(values->GetType()) {
+                case VTYPE_BOOL:
+                    retValue = webview_value_new_bool(values->GetBool());
+                    break;
+                case VTYPE_DOUBLE:
+                    retValue = webview_value_new_double(values->GetDouble());
+                    break;
+                case VTYPE_INT:
+                    retValue = webview_value_new_int(values->GetInt());
+                    break;
+                case VTYPE_STRING:
+                    retValue = webview_value_new_string(values->GetString().ToString().c_str());
+                    break;
+                case VTYPE_LIST: {
+                    retValue = webview_value_new_list();
+                    CefRefPtr<CefListValue> list = values->GetList();
+                    
+                    if (list) {
+                        for (size_t i = 0; i < list->GetSize(); ++i) {
+                            CefValueType type = list->GetType(i);
+                            CefRefPtr<CefValue> listItem = list->GetValue(i);
 
-                                if (type == VTYPE_INT) {
-                                    webview_value_append(retValue, webview_value_new_int(listItem->GetInt()));
-                                } else if (type == VTYPE_BOOL) {
-                                    webview_value_append(retValue, webview_value_new_bool(listItem->GetBool()));
-                                } else if (type == VTYPE_STRING) {
-                                    webview_value_append(retValue, webview_value_new_string(listItem->GetString().ToString().c_str()));
-                                } else if (type == VTYPE_DOUBLE) {
-                                    webview_value_append(retValue, webview_value_new_double(listItem->GetDouble()));
-                                } else {
-                                    continue;
-                                }
+                            if (type == VTYPE_INT) {
+                                webview_value_append(retValue, webview_value_new_int(listItem->GetInt()));
+                            } else if (type == VTYPE_BOOL) {
+                                webview_value_append(retValue, webview_value_new_bool(listItem->GetBool()));
+                            } else if (type == VTYPE_STRING) {
+                                webview_value_append(retValue, webview_value_new_string(listItem->GetString().ToString().c_str()));
+                            } else if (type == VTYPE_DOUBLE) {
+                                webview_value_append(retValue, webview_value_new_double(listItem->GetDouble()));
+                            } else {
+                                continue;
                             }
                         }
-                        break;
                     }
-                    default:
-                        // Return null as fallback
-                        result(1, nullptr);
-                        return;
+                    break;
                 }
+                default:
+                    // Return null as fallback
+                    result(1, nullptr);
+                    return;
+            }
 
-				result(1, retValue);
-				webview_value_unref(retValue); });
+			result(1, retValue);
+			webview_value_unref(retValue); });
 		}
 		else
 		{
@@ -654,6 +655,7 @@ namespace webview_cef
 
 	void initCEFProcesses()
 	{
+
 #ifdef OS_MAC
 		CefScopedLibraryLoader loader;
 		if (!loader.LoadInMain())
@@ -670,13 +672,15 @@ namespace webview_cef
 	{
 		CefSettings cefs;
 		cefs.windowless_rendering_enabled = true;
+		cefs.background_color = 0;
 
 #ifdef NDEBUG
-		cefs.no_sandbox = false; // En producción, habilitar sandbox
+		cefs.no_sandbox = false;
 #else
-		cefs.no_sandbox = true; // En desarrollo, deshabilitar sandbox
+		cefs.no_sandbox = true;
 #endif
-		cefs.log_severity = LOGSEVERITY_VERBOSE;
+
+		cefs.log_severity = LOGSEVERITY_WARNING;
 		cefs.persist_session_cookies = true;
 
 		if (!userAgent.empty())
@@ -684,9 +688,8 @@ namespace webview_cef
 			CefString(&cefs.user_agent_product) = userAgent;
 		}
 
-		// --- AÑADIR ESTO ---
-		// Define la ruta base para TODOS los datos de CEF (incluidos perfiles)
 		std::string rootCachePathBase;
+
 #ifdef _WIN32
 		char tempPath[MAX_PATH];
 		GetTempPathA(MAX_PATH, tempPath);
@@ -722,12 +725,6 @@ namespace webview_cef
 
 		CefString(&cefs.root_cache_path) = rootCachePathBase;
 		// --- FIN DE LO AÑADIDO ---
-
-#ifdef OS_MAC
-		cefs.external_message_pump = true;
-#else
-		cefs.multi_threaded_message_loop = true;
-#endif
 
 		CefInitialize(mainArgs, cefs, app.get(), nullptr);
 		isCefInitialized = true; // Asegúrate de que esto se establezca aquí
@@ -787,7 +784,6 @@ namespace webview_cef
 
 		// Asegurarse de que CefShutdown() se llame
 		CefShutdown();
-
 // En Windows, matar cualquier proceso residual de CEF
 #ifdef _WIN32
 		system("taskkill /F /IM scalboost_browser.exe /T 2>nul");

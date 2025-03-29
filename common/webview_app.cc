@@ -1,6 +1,3 @@
-// Copyright (c) 2013 The Chromium Embedded Framework Authors. All rights
-// reserved. Use of this source code is governed by a BSD-style license that
-// can be found in the LICENSE file.
 
 #include "webview_app.h"
 
@@ -68,8 +65,6 @@ namespace
                                        CefRefPtr<CefBrowserView> popup_browser_view,
                                        bool is_devtools) override
         {
-            std::cout << "----> OnPopupBrowserViewCreated called! Is DevTools: "
-                      << (is_devtools ? "yes" : "no") << std::endl;
             // Create a new top-level Window for the popup. It will show itself after
             // creation.
             CefWindow::CreateTopLevelWindow(
@@ -102,6 +97,7 @@ WebviewApp::ProcessType WebviewApp::GetProcessType(CefRefPtr<CefCommandLine> com
     const std::string &process_type = command_line->GetSwitchValue("type");
     if (process_type == "renderer")
         return RendererProcess;
+
 #if defined(OS_LINUX)
     else if (process_type == "zygote")
         return ZygoteProcess;
@@ -119,6 +115,11 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
             command_line->AppendSwitch("disable-gpu");
             command_line->AppendSwitch("disable-gpu-compositing");
         }
+        // El más importante para CEF 103
+
+        // Añadir estos switches para prevenir la ventana fantasma
+        command_line->AppendSwitch("disable-features=OverlayScrollbar,WindowServiceInProcess");
+        command_line->AppendSwitch("enable-begin-frame-scheduling");
 
         command_line->AppendSwitch("allow-running-insecure-content");
         command_line->AppendSwitch("disable-popup-blocking"); // allow running insecure content in secure pages
@@ -136,8 +137,8 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         // http://www.chromium.org/developers/design-documents/process-models
         if (m_uMode == 1)
         {
-            command_line->AppendSwitch("process-per-site");                      // each site in its own process
-            command_line->AppendSwitchWithValue("renderer-process-limit ", "8"); // limit renderer process count to decrease memory usage
+            command_line->AppendSwitch("process-per-site");                     // each site in its own process
+            command_line->AppendSwitchWithValue("renderer-process-limit", "8"); // limit renderer process count to decrease memory usage
         }
         else if (m_uMode == 2)
         {
@@ -180,11 +181,11 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         command_line->AppendSwitchWithValue("disable-site-isolation-for-policy", "true");
     }
 
-#ifdef __APPLE__
+#ifdef APPLE
     command_line->AppendSwitch("use-mock-keychain");
     command_line->AppendSwitch("single-process");
 #endif
-#ifdef __linux__
+#ifdef linux
 
 #endif
 }
@@ -216,67 +217,67 @@ void WebviewApp::OnWebKitInitialized()
 {
     // inject js function for jssdk
     std::string extensionCode = R"(
-			var external = {};
-			var clientSdk = {};
-			(() => {
-				clientSdk.jsCmd = (functionName, arg1, arg2, arg3) => {
-					if (typeof arg1 === 'function') {
-						native function jsCmd(functionName, arg1);
-						return jsCmd(functionName, arg1);
-					} 
-					else if	 (typeof arg2 === 'function') {
-                        jsonString = arg1;
-                        if	(typeof arg1 !== 'string'){
-						    jsonString = JSON.stringify(arg1);
-                        }
-						native function jsCmd(functionName, jsonString, arg2);
-						return jsCmd(functionName, jsonString, arg2);
-					}
-					else if	 (typeof arg3 === 'function') {
-                        jsonString = arg1;
-                        if	(typeof arg1 !== 'string'){
-						    jsonString = JSON.stringify(arg1);
-                        }
-						native function jsCmd(functionName, jsonString, arg2, arg3);
-						return jsCmd(functionName, jsonString, arg2, arg3);
-					}else {
+var external = {};
+var clientSdk = {};
+(() => {
+clientSdk.jsCmd = (functionName, arg1, arg2, arg3) => {
+if (typeof arg1 === 'function') {
+native function jsCmd(functionName, arg1);
+return jsCmd(functionName, arg1);
+}
+else if	 (typeof arg2 === 'function') {
+jsonString = arg1;
+if	(typeof arg1 !== 'string'){
+jsonString = JSON.stringify(arg1);
+}
+native function jsCmd(functionName, jsonString, arg2);
+return jsCmd(functionName, jsonString, arg2);
+}
+else if	 (typeof arg3 === 'function') {
+jsonString = arg1;
+if	(typeof arg1 !== 'string'){
+jsonString = JSON.stringify(arg1);
+}
+native function jsCmd(functionName, jsonString, arg2, arg3);
+return jsCmd(functionName, jsonString, arg2, arg3);
+}else {
 
-					}
-				};
+}
+			};
 
-                external.JavaScriptChannel = (n,e,r) => {
-                    var a; 
-                    null == r ? a = '' : (a = '_' + new Date + (1e3 + Math.floor(8999 * Math.random())), window[a] = function (n, e) { 
-                        return function () { 
-                            try {
-                                e && e.call && e.call(null, arguments[1]) 
-                            } finally {
-                                delete window[n]
-                            } 
+            external.JavaScriptChannel = (n,e,r) => {
+                var a; 
+                null == r ? a = '' : (a = '_' + new Date + (1e3 + Math.floor(8999 * Math.random())), window[a] = function (n, e) { 
+                    return function () { 
+                        try {
+                            e && e.call && e.call(null, arguments[1]) 
+                        } finally {
+                            delete window[n]
                         } 
-                    }(a, r)); 
-                    try {
-                        external.StartRequest(external.GetNextReqID(), n, a, JSON.stringify(e || {}), '') 
-                    } catch (l) {
-                        console.log('messeage send')
-                    }
+                    } 
+                }(a, r)); 
+                try {
+                    external.StartRequest(external.GetNextReqID(), n, a, JSON.stringify(e || {}), '') 
+                } catch (l) {
+                    console.log('messeage send')
                 }
+            }
 
-                external.EvaluateCallback = (nReqID, result) => {
-                    native function EvaluateCallback();
-                    EvaluateCallback(nReqID, result);
-                }
+            external.EvaluateCallback = (nReqID, result) => {
+                native function EvaluateCallback();
+                EvaluateCallback(nReqID, result);
+            }
 
-				external.StartRequest  = (nReqID, strCmd, strCallBack, strArgs, strLog) => {
-					native function StartRequest();
-					StartRequest(nReqID, strCmd, strCallBack, strArgs, strLog);
-				};
-				external.GetNextReqID  = () => {
-				  native function GetNextReqID();
-				  return GetNextReqID();
-				};
-			})();
-		 )";
+			external.StartRequest  = (nReqID, strCmd, strCallBack, strArgs, strLog) => {
+				native function StartRequest();
+				StartRequest(nReqID, strCmd, strCallBack, strArgs, strLog);
+			};
+			external.GetNextReqID  = () => {
+			  native function GetNextReqID();
+			  return GetNextReqID();
+			};
+		})();
+	 )";
 
     CefRefPtr<CefJSHandler> handler = new CefJSHandler();
 
