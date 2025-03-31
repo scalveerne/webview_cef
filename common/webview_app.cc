@@ -1,6 +1,10 @@
 #include "webview_app.h"
 
 #include <string>
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <ctime>
 
 #include "include/cef_browser.h"
 #include "include/cef_command_line.h"
@@ -11,19 +15,38 @@
 namespace
 {
 
+    // Función auxiliar para registrar eventos en un archivo log
+    void LogEvent(const std::string &event_type, const std::string &details)
+    {
+        std::ofstream logfile("cef_windows.log", std::ios::app);
+        auto now = std::chrono::system_clock::now();
+        auto time = std::chrono::system_clock::to_time_t(now);
+        logfile << std::ctime(&time) << " [" << event_type << "] " << details << std::endl;
+        std::cout << "[CEF] " << event_type << ": " << details << std::endl;
+    }
+
     // When using the Views framework this object provides the delegate
     // implementation for the CefWindow that hosts the Views-based browser.
     class SimpleWindowDelegate : public CefWindowDelegate
     {
     public:
         explicit SimpleWindowDelegate(CefRefPtr<CefBrowserView> browser_view)
-            : browser_view_(browser_view) {}
+            : browser_view_(browser_view)
+        {
+            LogEvent("WindowDelegate", "Nuevo delegado de ventana creado");
+        }
 
         void OnWindowCreated(CefRefPtr<CefWindow> window) override
         {
+            LogEvent("WindowCreated", "Ventana principal creada con ID: " +
+                                          std::to_string(window->GetIdentifier()));
+
             // Add the browser view and show the window.
             window->AddChildView(browser_view_);
-            // window->Show();
+            LogEvent("WindowConfig", "Vista del navegador añadida a la ventana");
+
+            window->Show();
+            LogEvent("WindowShown", "Ventana mostrada al usuario");
 
             // Give keyboard focus to the browser view.
             browser_view_->RequestFocus();
@@ -31,6 +54,7 @@ namespace
 
         void OnWindowDestroyed(CefRefPtr<CefWindow> window) override
         {
+            LogEvent("WindowDestroyed", "Ventana destruida");
             browser_view_ = nullptr;
         }
 
@@ -58,16 +82,25 @@ namespace
     class SimpleBrowserViewDelegate : public CefBrowserViewDelegate
     {
     public:
-        SimpleBrowserViewDelegate() {}
+        SimpleBrowserViewDelegate()
+        {
+            LogEvent("BrowserViewDelegate", "Nuevo delegado de vista de navegador creado");
+        }
 
         bool OnPopupBrowserViewCreated(CefRefPtr<CefBrowserView> browser_view,
                                        CefRefPtr<CefBrowserView> popup_browser_view,
                                        bool is_devtools) override
         {
+            // Log information about the popup creation
+            std::string popup_type = is_devtools ? "DevTools" : "Normal Popup";
+            LogEvent("PopupCreated", "Nueva ventana emergente creada (" + popup_type + ")");
+
             // Create a new top-level Window for the popup. It will show itself after
             // creation.
             CefWindow::CreateTopLevelWindow(
                 new SimpleWindowDelegate(popup_browser_view));
+
+            LogEvent("PopupWindow", "Ventana emergente enviada para creación");
 
             // We created the Window.
             return true;
@@ -83,6 +116,7 @@ namespace
 WebviewApp::WebviewApp(CefRefPtr<WebviewHandler> handler)
 {
     m_handler = handler;
+    LogEvent("AppInit", "Aplicación WebviewApp inicializada");
 }
 
 WebviewApp::ProcessType WebviewApp::GetProcessType(CefRefPtr<CefCommandLine> command_line)
@@ -90,22 +124,38 @@ WebviewApp::ProcessType WebviewApp::GetProcessType(CefRefPtr<CefCommandLine> com
     // The command-line flag won't be specified for the browser process.
     if (!command_line->HasSwitch("type"))
     {
+        LogEvent("ProcessType", "Proceso de navegador principal detectado");
         return BrowserProcess;
     }
 
     const std::string &process_type = command_line->GetSwitchValue("type");
     if (process_type == "renderer")
+    {
+        LogEvent("ProcessType", "Proceso de renderizado detectado");
         return RendererProcess;
+    }
 
 #if defined(OS_LINUX)
     else if (process_type == "zygote")
+    {
+        LogEvent("ProcessType", "Proceso zygote detectado");
         return ZygoteProcess;
+    }
 #endif
+    LogEvent("ProcessType", "Otro tipo de proceso detectado: " + process_type);
     return OtherProcess;
 }
 
 void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, CefRefPtr<CefCommandLine> command_line)
 {
+    // Registrar el proceso que se está iniciando
+    std::string process_type_str = process_type.ToString();
+    if (process_type_str.empty())
+    {
+        process_type_str = "browser";
+    }
+    LogEvent("CommandLine", "Procesando línea de comandos para proceso: " + process_type_str);
+
     // Pass additional command-line flags to the browser process.
     if (process_type.empty())
     {
@@ -284,6 +334,9 @@ return jsCmd(functionName, jsonString, arg2, arg3);
 
 void WebviewApp::OnBrowserCreated(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDictionaryValue> extra_info)
 {
+    LogEvent("BrowserCreated", "Navegador creado con ID: " +
+                                   std::to_string(browser->GetIdentifier()));
+
     if (!m_render_js_bridge.get())
     {
         m_render_js_bridge.reset(new CefJSBridge);
@@ -302,11 +355,15 @@ void WebviewApp::SetEnableGPU(bool bEnable)
 
 void WebviewApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line)
 {
-    // Verifica qué tipo de proceso es antes de aplicar headless
+    // Registrar el lanzamiento de un proceso hijo
     const std::string &process_type = command_line->GetSwitchValue("type");
+    LogEvent("ChildProcess", "Lanzando proceso hijo de tipo: " + process_type);
+
+    // Verifica qué tipo de proceso es antes de aplicar headless
     if (process_type == "gpu-process" || process_type == "utility")
     {
         command_line->AppendSwitch("headless");
+        LogEvent("ChildProcess", "Aplicando modo headless a proceso: " + process_type);
     }
 }
 
