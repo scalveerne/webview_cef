@@ -215,6 +215,9 @@ public:
     void sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId);
     void executeJavaScript(int browserId, const std::string code, std::function<void(CefRefPtr<CefValue>)> callback = nullptr);
 
+    // Función auxiliar para verificar si un frame existe en un navegador
+    bool frameExists(CefRefPtr<CefBrowser> browser, const std::string &frameId);
+
     // Añade este método para acceder a los browsers activos
     static const std::unordered_map<int, browser_info> &GetActiveBrowsers()
     {

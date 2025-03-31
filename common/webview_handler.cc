@@ -509,7 +509,7 @@ void WebviewHandler::changeSize(int browserId, float a_dpi, int w, int h)
     }
 }
 
-void WebviewHandler::cursorClick(int browserId, int x, int y, bool up)
+void WebviewHandler::cursorClick(int browserId, int x, int y, bool up, int button)
 {
     auto it = browser_map_.find(browserId);
     if (it != browser_map_.end())
@@ -526,7 +526,21 @@ void WebviewHandler::cursorClick(int browserId, int x, int y, bool up)
         }
         else
         {
-            it->second.browser->GetHost()->SendMouseClickEvent(ev, CefBrowserHost::MouseButtonType::MBT_LEFT, up, 1);
+            CefBrowserHost::MouseButtonType btnType = CefBrowserHost::MouseButtonType::MBT_LEFT;
+            switch (button)
+            {
+            case kMouseMiddle:
+                btnType = CefBrowserHost::MouseButtonType::MBT_MIDDLE;
+                break;
+            case kMouseRight:
+                btnType = CefBrowserHost::MouseButtonType::MBT_RIGHT;
+                break;
+            case kMouseLeft:
+            default:
+                btnType = CefBrowserHost::MouseButtonType::MBT_LEFT;
+                break;
+            }
+            it->second.browser->GetHost()->SendMouseClickEvent(ev, btnType, up, 1);
         }
     }
 }
@@ -793,6 +807,16 @@ void WebviewHandler::setJavaScriptChannels(int browserId, const std::vector<std:
     executeJavaScript(browserId, extensionCode);
 }
 
+// Función auxiliar para comparar CefString sin importar el sistema operativo
+bool CefStringCompare(const CefString &str1, const CefString &str2)
+{
+#if defined(OS_WIN)
+    return str1.ToString() == str2.ToString();
+#else
+    return str1 == str2;
+#endif
+}
+
 void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId)
 {
     std::cout << "C++→JS Enviando respuesta: callbackId=" << callbackId
@@ -844,13 +868,14 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
             // usan el frame principal para la interacción
             frame->SendProcessMessage(PID_RENDERER, message);
 
-            // Mostrar información para depuración - USANDO TIPO CORRECTO
+            // Mostrar información para depuración
 #if defined(OS_WIN)
             std::vector<int64_t> frameIds;
+            bit->second.browser->GetFrameIdentifiers(frameIds);
 #else
             std::vector<int64> frameIds;
-#endif
             bit->second.browser->GetFrameIdentifiers(frameIds);
+#endif
             std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
             for (auto &id : frameIds)
             {
@@ -942,4 +967,26 @@ void WebviewHandler::OnPaint(CefRefPtr<CefBrowser> browser, CefRenderHandler::Pa
     {
         onPaintCallback(browser->GetIdentifier(), buffer, w, h);
     }
+}
+
+// Función auxiliar para verificar si un frame específico existe
+bool WebviewHandler::frameExists(CefRefPtr<CefBrowser> browser, const std::string &frameId)
+{
+    CefString frameIdStr(frameId);
+#if defined(OS_WIN)
+    std::vector<int64_t> allFrameIds;
+#else
+    std::vector<int64> allFrameIds;
+#endif
+    browser->GetFrameIdentifiers(allFrameIds);
+
+    int64_t frameIdNum = atoll(frameId.c_str());
+    for (auto &id : allFrameIds)
+    {
+        if (id == frameIdNum)
+        {
+            return true;
+        }
+    }
+    return false;
 }
