@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Marshall A. Greenblatt. All rights reserved.
+// Copyright (c) 2024 Marshall A. Greenblatt. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -33,7 +33,7 @@
 // by hand. See the translator.README.txt file in the tools directory for
 // more information.
 //
-// $hash=de4a9b856c6951231f446991a9b1efb89096ad3b$
+// $hash=8eec1100e8470cbe3ebc54d5962416d2fa4d57fb$
 //
 
 #ifndef CEF_INCLUDE_CAPI_CEF_MEDIA_ROUTER_CAPI_H_
@@ -114,8 +114,8 @@ typedef struct _cef_media_router_t {
 /// Returns the MediaRouter object associated with the global request context.
 /// If |callback| is non-NULL it will be executed asnychronously on the UI
 /// thread after the manager's storage has been initialized. Equivalent to
-/// calling cef_request_context_t::cef_request_context_get_global_context()->get
-/// _media_router().
+/// calling cef_request_context_t::cef_request_context_get_global_context()-
+/// >get_media_router().
 ///
 CEF_EXPORT cef_media_router_t* cef_media_router_get_global(
     struct _cef_completion_callback_t* callback);
@@ -156,7 +156,7 @@ typedef struct _cef_media_observer_t {
       cef_media_route_connection_state_t state);
 
   ///
-  /// A message was recieved over |route|. |message| is only valid for the scope
+  /// A message was received over |route|. |message| is only valid for the scope
   /// of this callback and should be copied if necessary.
   ///
   void(CEF_CALLBACK* on_route_message_received)(

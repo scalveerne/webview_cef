@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Marshall A. Greenblatt. All rights reserved.
+// Copyright (c) 2024 Marshall A. Greenblatt. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -33,7 +33,7 @@
 // by hand. See the translator.README.txt file in the tools directory for
 // more information.
 //
-// $hash=5bed8359f09a821f4b5ec8ebfad0aa5720bf39f9$
+// $hash=8f347a95168778ec0e686cdef93be3bc517e2f68$
 //
 
 #ifndef CEF_INCLUDE_CAPI_CEF_FRAME_CAPI_H_
@@ -178,10 +178,12 @@ typedef struct _cef_frame_t {
   cef_string_userfree_t(CEF_CALLBACK* get_name)(struct _cef_frame_t* self);
 
   ///
-  /// Returns the globally unique identifier for this frame or < 0 if the
+  /// Returns the globally unique identifier for this frame or NULL if the
   /// underlying frame does not yet exist.
   ///
-  int64(CEF_CALLBACK* get_identifier)(struct _cef_frame_t* self);
+  // The resulting string must be freed by calling cef_string_userfree_free().
+  cef_string_userfree_t(CEF_CALLBACK* get_identifier)(
+      struct _cef_frame_t* self);
 
   ///
   /// Returns the parent of this frame or NULL if this is the main (top-level)

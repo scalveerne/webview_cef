@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Marshall A. Greenblatt. All rights reserved.
+// Copyright (c) 2024 Marshall A. Greenblatt. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -33,7 +33,7 @@
 // by hand. See the translator.README.txt file in the tools directory for
 // more information.
 //
-// $hash=94e93810316b74e54eb315d97c6fc6f1cc0c9cc5$
+// $hash=f8e8992eedf254a60e2875715c3adfa23ca4ae20$
 //
 
 #ifndef CEF_INCLUDE_CAPI_VIEWS_CEF_BROWSER_VIEW_DELEGATE_CAPI_H_
@@ -119,19 +119,35 @@ typedef struct _cef_browser_view_delegate_t {
   /// documentation.
   ///
   cef_chrome_toolbar_type_t(CEF_CALLBACK* get_chrome_toolbar_type)(
-      struct _cef_browser_view_delegate_t* self);
+      struct _cef_browser_view_delegate_t* self,
+      struct _cef_browser_view_t* browser_view);
+
+  ///
+  /// Return true (1) to create frameless windows for Document picture-in-
+  /// picture popups. Content in frameless windows should specify draggable
+  /// regions using "-webkit-app-region: drag" CSS.
+  ///
+  int(CEF_CALLBACK* use_frameless_window_for_picture_in_picture)(
+      struct _cef_browser_view_delegate_t* self,
+      struct _cef_browser_view_t* browser_view);
 
   ///
   /// Called when |browser_view| receives a gesture command. Return true (1) to
   /// handle (or disable) a |gesture_command| or false (0) to propagate the
-  /// gesture to the browser for default handling. This function will only be
-  /// called with the Alloy runtime. To handle these commands with the Chrome
-  /// runtime implement cef_command_handler_t::OnChromeCommand instead.
+  /// gesture to the browser for default handling. With Chrome style these
+  /// commands can also be handled via cef_command_handler_t::OnChromeCommand.
   ///
   int(CEF_CALLBACK* on_gesture_command)(
       struct _cef_browser_view_delegate_t* self,
       struct _cef_browser_view_t* browser_view,
       cef_gesture_command_t gesture_command);
+
+  ///
+  /// Optionally change the runtime style for this BrowserView. See
+  /// cef_runtime_style_t documentation for details.
+  ///
+  cef_runtime_style_t(CEF_CALLBACK* get_browser_runtime_style)(
+      struct _cef_browser_view_delegate_t* self);
 } cef_browser_view_delegate_t;
 
 #ifdef __cplusplus

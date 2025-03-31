@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Marshall A. Greenblatt. All rights reserved.
+// Copyright (c) 2024 Marshall A. Greenblatt. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -33,7 +33,7 @@
 // by hand. See the translator.README.txt file in the tools directory for
 // more information.
 //
-// $hash=0d787ac7676ba90d3a1fe68d5e2494b985b1db0e$
+// $hash=0b56c483bee6489e591c54c9dbb0940cd3098eaa$
 //
 
 #ifndef CEF_INCLUDE_CAPI_CEF_V8_CAPI_H_
@@ -474,12 +474,12 @@ typedef struct _cef_v8value_t {
   ///
   /// Return an int value.
   ///
-  int32(CEF_CALLBACK* get_int_value)(struct _cef_v8value_t* self);
+  int32_t(CEF_CALLBACK* get_int_value)(struct _cef_v8value_t* self);
 
   ///
   /// Return an unsigned int value.
   ///
-  uint32(CEF_CALLBACK* get_uint_value)(struct _cef_v8value_t* self);
+  uint32_t(CEF_CALLBACK* get_uint_value)(struct _cef_v8value_t* self);
 
   ///
   /// Return a double value.
@@ -611,7 +611,6 @@ typedef struct _cef_v8value_t {
   ///
   int(CEF_CALLBACK* set_value_byaccessor)(struct _cef_v8value_t* self,
                                           const cef_string_t* key,
-                                          cef_v8_accesscontrol_t settings,
                                           cef_v8_propertyattribute_t attribute);
 
   ///
@@ -678,6 +677,19 @@ typedef struct _cef_v8value_t {
   /// release the underlying buffer.
   ///
   int(CEF_CALLBACK* neuter_array_buffer)(struct _cef_v8value_t* self);
+
+  ///
+  /// Returns the length (in bytes) of the ArrayBuffer.
+  ///
+  size_t(CEF_CALLBACK* get_array_buffer_byte_length)(
+      struct _cef_v8value_t* self);
+
+  ///
+  /// Returns a pointer to the beginning of the memory block for this
+  /// ArrayBuffer backing store. The returned pointer is valid as long as the
+  /// cef_v8value_t is alive.
+  ///
+  void*(CEF_CALLBACK* get_array_buffer_data)(struct _cef_v8value_t* self);
 
   ///
   /// Returns the function name.
@@ -764,12 +776,12 @@ CEF_EXPORT cef_v8value_t* cef_v8value_create_bool(int value);
 ///
 /// Create a new cef_v8value_t object of type int.
 ///
-CEF_EXPORT cef_v8value_t* cef_v8value_create_int(int32 value);
+CEF_EXPORT cef_v8value_t* cef_v8value_create_int(int32_t value);
 
 ///
 /// Create a new cef_v8value_t object of type unsigned int.
 ///
-CEF_EXPORT cef_v8value_t* cef_v8value_create_uint(uint32 value);
+CEF_EXPORT cef_v8value_t* cef_v8value_create_uint(uint32_t value);
 
 ///
 /// Create a new cef_v8value_t object of type double.
@@ -820,10 +832,23 @@ CEF_EXPORT cef_v8value_t* cef_v8value_create_array(int length);
 /// cef_v8handler_t or cef_v8accessor_t callback, or in combination with calling
 /// enter() and exit() on a stored cef_v8context_t reference.
 ///
+/// NOTE: Always returns nullptr when V8 sandbox is enabled.
+///
 CEF_EXPORT cef_v8value_t* cef_v8value_create_array_buffer(
     void* buffer,
     size_t length,
     cef_v8array_buffer_release_callback_t* release_callback);
+
+///
+/// Create a new cef_v8value_t object of type ArrayBuffer which copies the
+/// provided |buffer| of size |length| bytes. This function should only be
+/// called from within the scope of a cef_render_process_handler_t,
+/// cef_v8handler_t or cef_v8accessor_t callback, or in combination with calling
+/// enter() and exit() on a stored cef_v8context_t reference.
+///
+CEF_EXPORT cef_v8value_t* cef_v8value_create_array_buffer_with_copy(
+    void* buffer,
+    size_t length);
 
 ///
 /// Create a new cef_v8value_t object of type function. This function should

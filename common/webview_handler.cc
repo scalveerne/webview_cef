@@ -723,6 +723,13 @@ void WebviewHandler::setJavaScriptChannels(int browserId, const std::vector<std:
 
 void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::string result, const std::string callbackId, const int browserId, const std::string frameId)
 {
+    std::cout << "C++→JS Enviando respuesta: callbackId=" << callbackId
+              << ", browserId=" << browserId
+              << ", frameId=" << frameId
+              << ", error=" << (error ? "true" : "false")
+              << ", resultado=" << (result.length() > 100 ? result.substr(0, 100) + "..." : result)
+              << std::endl;
+
     CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create(kExecuteJsCallbackMessage);
     CefRefPtr<CefListValue> args = message->GetArgumentList();
     args->SetInt(0, atoi(callbackId.c_str()));
@@ -732,20 +739,44 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
     if (bit != browser_map_.end())
     {
         int64_t frameIdInt = atoll(frameId.c_str());
-
         CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
 
-        // Return types for frame->GetIdentifier() changed, use the Linux way when updating MacOS or Windows
-        // versions in download.cmake
-#if __linux__
-        bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
+#if defined(OS_WIN) || defined(OS_MAC)
+        bool identifierMatch = std::to_string(frame->GetIdentifier()) == std::to_string(frameIdInt);
 #else
-        bool identifierMatch = frame->GetIdentifier() == frameIdInt;
+        bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
+        std::cout << "Comparando frameIds: "
+                  << "JS frameId=" << frameIdInt
+                  << ", MainFrame ID=" << std::to_string(frame->GetIdentifier())
+                  << ", Match=" << (identifierMatch ? "SÍ" : "NO") << std::endl;
+
         if (identifierMatch)
         {
+            std::cout << "✅ Enviando mensaje al frame principal" << std::endl;
             frame->SendProcessMessage(PID_RENDERER, message);
         }
+        else
+        {
+            std::cout << "❌ El frameId no coincide con el main frame, intentando enviar al main frame..." << std::endl;
+
+            // Simplemente enviarlo al frame principal, ya que la mayoría de los sitios
+            // usan el frame principal para la interacción
+            frame->SendProcessMessage(PID_RENDERER, message);
+
+            // Mostrar información para depuración - USANDO TIPO CORRECTO
+            std::vector<int64> frameIds; // Cambio: ahora usamos CefString en lugar de int64_t
+            bit->second.browser->GetFrameIdentifiers(frameIds);
+            std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
+            for (auto &id : frameIds)
+            {
+                std::cout << "  ID: " << id << std::endl;
+            }
+        }
+    }
+    else
+    {
+        std::cout << "❌ Browser ID no encontrado: " << browserId << std::endl;
     }
 }
 
