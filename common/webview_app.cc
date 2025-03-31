@@ -375,7 +375,7 @@ void WebviewApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_li
     LogEvent("ChildProcess", "Lanzando proceso hijo de tipo: " + process_type);
 
     // Aplicar headless a TODOS los procesos utility y GPU, sin importar cuándo se lancen
-    if (process_type == "utility" || process_type == "gpu-process")
+    if (process_type == "utility")
     {
         command_line->AppendSwitch("headless");
         command_line->AppendSwitch("hide-scrollbars");
