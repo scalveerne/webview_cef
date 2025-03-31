@@ -391,7 +391,7 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
             {
                 std::cerr << "Error creando directorio de caché: " << e.what() << std::endl;
                 // Si no podemos crear el directorio, usar el contexto global
-                return CefRequestContext::GetGlobalContext();
+                context = CefRequestContext::GetGlobalContext();
             }
 
             CefString(&settings.cache_path) = cachePath;
@@ -813,15 +813,23 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
         int64_t frameIdInt = atoll(frameId.c_str());
         CefRefPtr<CefFrame> frame = bit->second.browser->GetMainFrame();
 
-#if defined(OS_WIN) || defined(OS_MAC)
+#if defined(OS_WIN)
+        bool identifierMatch = frame->GetIdentifier() == frameIdInt;
+#elif defined(OS_MAC)
         bool identifierMatch = std::to_string(frame->GetIdentifier()) == std::to_string(frameIdInt);
 #else
         bool identifierMatch = std::stoll(frame->GetIdentifier().ToString()) == frameIdInt;
 #endif
         std::cout << "Comparando frameIds: "
                   << "JS frameId=" << frameIdInt
-                  << ", MainFrame ID=" << std::to_string(frame->GetIdentifier())
-                  << ", Match=" << (identifierMatch ? "SÍ" : "NO") << std::endl;
+                  << ", MainFrame ID=";
+
+#if defined(OS_WIN)
+        std::cout << frame->GetIdentifier();
+#else
+        std::cout << std::to_string(frame->GetIdentifier());
+#endif
+        std::cout << ", Match=" << (identifierMatch ? "SÍ" : "NO") << std::endl;
 
         if (identifierMatch)
         {
@@ -837,7 +845,11 @@ void WebviewHandler::sendJavaScriptChannelCallBack(const bool error, const std::
             frame->SendProcessMessage(PID_RENDERER, message);
 
             // Mostrar información para depuración - USANDO TIPO CORRECTO
-            std::vector<int64> frameIds; // Cambio: ahora usamos CefString en lugar de int64_t
+#if defined(OS_WIN)
+            std::vector<int64_t> frameIds;
+#else
+            std::vector<int64> frameIds;
+#endif
             bit->second.browser->GetFrameIdentifiers(frameIds);
             std::cout << "Frames disponibles: " << frameIds.size() << std::endl;
             for (auto &id : frameIds)
