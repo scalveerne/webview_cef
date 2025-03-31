@@ -24,7 +24,7 @@ namespace
         {
             // Add the browser view and show the window.
             window->AddChildView(browser_view_);
-            window->Show();
+            // window->Show();
 
             // Give keyboard focus to the browser view.
             browser_view_->RequestFocus();
@@ -117,9 +117,8 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
         }
         // El más importante para CEF 103
 
-
         command_line->AppendSwitch("allow-running-insecure-content");
-        command_line->AppendSwitch("disable-popup-blocking"); // allow running insecure content in secure pages
+        command_line->AppendSwitch("disable-popup-blocking");        // allow running insecure content in secure pages
         command_line->AppendSwitch("disable-gpu-shader-disk-cache"); // disable gpu shader disk cache
         command_line->AppendSwitch("no-sanbox");
 
