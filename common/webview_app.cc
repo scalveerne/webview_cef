@@ -21,7 +21,23 @@ namespace
         std::ofstream logfile("cef_windows.log", std::ios::app);
         auto now = std::chrono::system_clock::now();
         auto time = std::chrono::system_clock::to_time_t(now);
-        logfile << std::ctime(&time) << " [" << event_type << "] " << details << std::endl;
+
+        // Usar una versión segura en Windows para evitar advertencia C4996
+        char time_buf[26];
+#ifdef _WIN32
+        ctime_s(time_buf, sizeof(time_buf), &time);
+        std::string time_str(time_buf);
+#else
+        std::string time_str(ctime(&time));
+#endif
+
+        // Quitar el salto de línea al final que añade ctime
+        if (!time_str.empty() && time_str[time_str.length() - 1] == '\n')
+        {
+            time_str.erase(time_str.length() - 1);
+        }
+
+        logfile << time_str << " [" << event_type << "] " << details << std::endl;
         std::cout << "[CEF] " << event_type << ": " << details << std::endl;
     }
 
@@ -38,8 +54,7 @@ namespace
 
         void OnWindowCreated(CefRefPtr<CefWindow> window) override
         {
-            LogEvent("WindowCreated", "Ventana principal creada con ID: " +
-                                          std::to_string(window->GetIdentifier()));
+            LogEvent("WindowCreated", "Ventana principal creada");
 
             // Add the browser view and show the window.
             window->AddChildView(browser_view_);
