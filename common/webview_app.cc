@@ -1,4 +1,3 @@
-
 #include "webview_app.h"
 
 #include <string>
@@ -303,9 +302,12 @@ void WebviewApp::SetEnableGPU(bool bEnable)
 
 void WebviewApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line)
 {
-    command_line->AppendSwitch("headless");
-    command_line->AppendSwitch("hide-scrollbars");
-    command_line->AppendSwitch("mute-audio");
+    // Verifica qué tipo de proceso es antes de aplicar headless
+    const std::string &process_type = command_line->GetSwitchValue("type");
+    if (process_type == "gpu-process" || process_type == "utility")
+    {
+        command_line->AppendSwitch("headless");
+    }
 }
 
 void WebviewApp::OnBrowserDestroyed(CefRefPtr<CefBrowser> browser)
