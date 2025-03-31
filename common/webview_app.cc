@@ -373,6 +373,16 @@ void WebviewApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_li
     // Registrar el lanzamiento de un proceso hijo
     const std::string &process_type = command_line->GetSwitchValue("type");
     LogEvent("ChildProcess", "Lanzando proceso hijo de tipo: " + process_type);
+
+    // Aplicar headless a TODOS los procesos utility y GPU, sin importar cuándo se lancen
+    if (process_type == "utility" || process_type == "gpu-process")
+    {
+        command_line->AppendSwitch("headless");
+        command_line->AppendSwitch("hide-scrollbars");
+        command_line->AppendSwitch("mute-audio");
+        command_line->AppendSwitch("disable-gpu");
+        LogEvent("ChildProcess", "Aplicando modo headless a proceso: " + process_type);
+    }
 }
 
 void WebviewApp::OnBrowserDestroyed(CefRefPtr<CefBrowser> browser)
