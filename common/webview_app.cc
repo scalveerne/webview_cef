@@ -303,6 +303,9 @@ void WebviewApp::SetEnableGPU(bool bEnable)
 
 void WebviewApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line)
 {
+    command_line->AppendSwitch("headless");
+    command_line->AppendSwitch("hide-scrollbars");
+    command_line->AppendSwitch("mute-audio");
 }
 
 void WebviewApp::OnBrowserDestroyed(CefRefPtr<CefBrowser> browser)
