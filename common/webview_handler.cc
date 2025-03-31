@@ -7,9 +7,15 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <cstring>
 #include <chrono>
 #include <unordered_map>
 #include <cstdint>
+#include <algorithm>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -353,11 +359,44 @@ void WebviewHandler::createBrowser(std::string url, std::string profileId, std::
             // Crear un nuevo contexto para este perfil
             CefRequestContextSettings settings;
 
-            // Configurar rutas específicas para el perfil
-            std::string cachePath = "/cache/" + profileId;
+            // Configurar rutas específicas para el perfil - usando ruta absoluta
+            std::string cachePath;
+
+            // Obtener directorio base adecuado para la plataforma
+#ifdef _WIN32
+            char tempPath[MAX_PATH];
+            GetTempPathA(MAX_PATH, tempPath);
+            cachePath = std::string(tempPath) + "ScalBrowser\\cache\\" + profileId;
+#else
+            // Linux o macOS - usar HOME si está disponible
+            char *homeDir = getenv("HOME");
+            if (homeDir)
+            {
+                cachePath = std::string(homeDir) + "/.cache/scalbrowser/" + profileId;
+            }
+            else
+            {
+                // Fallback a /tmp si HOME no está disponible
+                cachePath = "/tmp/scalbrowser/" + profileId;
+            }
+#endif
+
+            // Asegurarse de que el directorio existe
+            try
+            {
+                // Crear directorios recursivamente
+                fs::create_directories(cachePath);
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "Error creando directorio de caché: " << e.what() << std::endl;
+                // Si no podemos crear el directorio, usar el contexto global
+                return CefRequestContext::GetGlobalContext();
+            }
+
             CefString(&settings.cache_path) = cachePath;
 
-            // Crear y almacenar el contexto
+            // Crear y almacenar el contexto sin un manejador personalizado
             context = CefRequestContext::CreateContext(settings, nullptr);
             profile_contexts_[profileId] = context;
         }
@@ -393,8 +432,41 @@ CefRefPtr<CefRequestContext> WebviewHandler::GetRequestContextForProfile(const s
     // Crear un nuevo contexto para este perfil
     CefRequestContextSettings settings;
 
-    // Configurar rutas específicas para el perfil
-    std::string cachePath = "/cache/" + profileId;
+    // Configurar rutas específicas para el perfil - usando ruta absoluta
+    std::string cachePath;
+
+    // Obtener directorio base adecuado para la plataforma
+#ifdef _WIN32
+    char tempPath[MAX_PATH];
+    GetTempPathA(MAX_PATH, tempPath);
+    cachePath = std::string(tempPath) + "ScalBrowser\\cache\\" + profileId;
+#else
+    // Linux o macOS - usar HOME si está disponible
+    char *homeDir = getenv("HOME");
+    if (homeDir)
+    {
+        cachePath = std::string(homeDir) + "/.cache/scalbrowser/" + profileId;
+    }
+    else
+    {
+        // Fallback a /tmp si HOME no está disponible
+        cachePath = "/tmp/scalbrowser/" + profileId;
+    }
+#endif
+
+    // Asegurarse de que el directorio existe
+    try
+    {
+        // Crear directorios recursivamente
+        fs::create_directories(cachePath);
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error creando directorio de caché: " << e.what() << std::endl;
+        // Si no podemos crear el directorio, usar el contexto global
+        return CefRequestContext::GetGlobalContext();
+    }
+
     CefString(&settings.cache_path) = cachePath;
 
     // Crear y almacenar el contexto sin un manejador personalizado
